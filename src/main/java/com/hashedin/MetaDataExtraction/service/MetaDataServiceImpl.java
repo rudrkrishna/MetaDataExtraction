@@ -7,37 +7,40 @@ import com.hashedin.MetaDataExtraction.dto.ElementResponse;
 import com.hashedin.MetaDataExtraction.dto.MetaData;
 import com.hashedin.MetaDataExtraction.dto.MetaDataFields;
 import com.hashedin.MetaDataExtraction.repository.ElementsRepository;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Service;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.DocumentBuilder;
 import org.springframework.http.*;
+import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestTemplate;
 import org.w3c.dom.Document;
 import org.w3c.dom.NodeList;
 import org.w3c.dom.Node;
-import java.io.File;
+
 import java.io.InputStream;
 import java.net.URL;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.util.*;
 @Service
+@Slf4j
 public class MetaDataServiceImpl {
 
     private final ElementsRepository elementsRepository;
     private final BasicConfigProperties basicConfigProperties;
     private final RestTemplate restTemplate;
+
+    private final BearerTokenServiceImpl bearerTokenService;
     private static final Map<String, String> map = new LinkedHashMap<String, String>();
 
     @Autowired
     public MetaDataServiceImpl(ElementsRepository elementsRepository,
-                               BasicConfigProperties basicConfigProperties, RestTemplate restTemplate) {
+                               BasicConfigProperties basicConfigProperties, RestTemplate restTemplate,
+                               BearerTokenServiceImpl bearerTokenService) {
         this.elementsRepository = elementsRepository;
         this.basicConfigProperties = basicConfigProperties;
         this.restTemplate = restTemplate;
+        this.bearerTokenService = bearerTokenService;
     }
 
     public ResponseEntity<ElementResponse> getDownloadableUrl(String elementId){
@@ -47,8 +50,20 @@ public class MetaDataServiceImpl {
         httpHeaders.setContentType(MediaType.APPLICATION_JSON);
         httpHeaders.setBearerAuth(basicConfigProperties.getBearerToken());
         HttpEntity<String> entity = new HttpEntity<>(httpHeaders);
-        ResponseEntity<ElementResponse> response = restTemplate.exchange(url, HttpMethod.GET,
-                entity, ElementResponse.class);
+        ResponseEntity<ElementResponse> response;
+        try {
+             response = restTemplate.exchange(url, HttpMethod.GET,
+                    entity, ElementResponse.class);
+             log.info("Element Details Fetched ");
+
+        }catch(HttpStatusCodeException h){
+            log.info("Error Status Code :"+h.getStatusCode());
+            log.info("Bearer Token Expired");
+            bearerTokenService.setBearerToken();
+            httpHeaders.setBearerAuth(basicConfigProperties.getBearerToken());
+            response = restTemplate.exchange(url, HttpMethod.GET,
+                    entity, ElementResponse.class);
+        }
         basicConfigProperties.setAssetId(response.getBody().getAsset().getId());
         return response;
     }
@@ -56,6 +71,7 @@ public class MetaDataServiceImpl {
         List<MetaDataFields> li = new ArrayList<MetaDataFields>();
             try {
                 InputStream in = new URL(response.getBody().getDownloadUrl()).openStream();
+                log.info("Element Downloaded");
                 DocumentBuilder documentBuilder =
                         DocumentBuilderFactory.newInstance().newDocumentBuilder();
                 Document doc = documentBuilder.parse(in);
@@ -64,14 +80,14 @@ public class MetaDataServiceImpl {
                 } else {
 
                 }
-
                 for (Map.Entry<String, String> entry : map.entrySet()) {
                     if (!entry.getValue().contains(";")) {
                         li.add(new MetaDataFields(entry.getKey(), entry.getValue(), false));
                     }
                 }
             } catch (Exception e) {
-                e.printStackTrace();
+                log.info("Error Message:    " + e.getMessage());
+                log.info("Error Cause: " + e.getCause());
             }
 
         return li;
@@ -114,6 +130,7 @@ public class MetaDataServiceImpl {
             HttpEntity<String> entity = new HttpEntity<>(jsonFormat, httpHeaders);
             response = restTemplate.exchange(basicConfigProperties.getAddMetaDataApi() +
                     basicConfigProperties.getAssetId() + "/metadata", HttpMethod.POST, entity, MetaData.class);
+            log.info("MetaData Updated in Assets corresponding Custom MetaData Fields");
         } catch (JsonProcessingException j) {
             j.printStackTrace();
         }
