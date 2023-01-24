@@ -3,25 +3,20 @@ package com.hashedin.MetaDataExtraction.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hashedin.MetaDataExtraction.config.BasicConfigProperties;
-import com.hashedin.MetaDataExtraction.dto.ElementResponse;
-import com.hashedin.MetaDataExtraction.dto.MetaData;
-import com.hashedin.MetaDataExtraction.dto.MetaDataFields;
+import com.hashedin.MetaDataExtraction.dto.*;
 import com.hashedin.MetaDataExtraction.repository.ElementsRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.*;
 import org.springframework.http.*;
 import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestTemplate;
-import org.w3c.dom.Document;
-import org.w3c.dom.NodeList;
-import org.w3c.dom.Node;
-
+import org.w3c.dom.*;
 import java.io.InputStream;
 import java.net.URL;
 import java.util.*;
+
 @Service
 @Slf4j
 public class MetaDataServiceImpl {
@@ -29,7 +24,6 @@ public class MetaDataServiceImpl {
     private final ElementsRepository elementsRepository;
     private final BasicConfigProperties basicConfigProperties;
     private final RestTemplate restTemplate;
-
     private final BearerTokenServiceImpl bearerTokenService;
     private static final Map<String, String> map = new LinkedHashMap<String, String>();
 
@@ -94,16 +88,13 @@ public class MetaDataServiceImpl {
     }
 
     private void printNote(NodeList nodeList, String parent) {
-
         for (int count = 0; count < nodeList.getLength(); count++) {
-
             Node tempNode = nodeList.item(count);
-
             if (tempNode.hasChildNodes()) {
-
                 printNote(tempNode.getChildNodes(),
                         tempNode.getNodeName());
-            } else {
+            }
+            else {
                 if (tempNode.getNodeType() == Node.TEXT_NODE &&
                         !tempNode.getTextContent().toString().matches("^[\\s]{1,}$")) {
                     if (map.containsKey(parent)) {
@@ -111,12 +102,9 @@ public class MetaDataServiceImpl {
                     } else {
                         map.put(parent, tempNode.getTextContent());
                     }
-
                 }
             }
-
         }
-
     }
 
     public ResponseEntity<MetaData> addMetaData(List<MetaDataFields> li) {
@@ -141,5 +129,4 @@ public class MetaDataServiceImpl {
         String[] fileNameProps=fileName.split("\\.");
         return fileNameProps[fileNameProps.length-1].equalsIgnoreCase("xml");
     }
-
 }

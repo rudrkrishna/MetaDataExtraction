@@ -11,8 +11,6 @@ public class BasicConfigProperties {
     private String getUrl;
     @Value("${sony.ci.elementprops}")
     private String elemProp;
-    @Value("${sony.ci.fileUrl}")
-    private String fileUrl;
     @Value("${sony.ci.addmetadata.url}")
     private String addMetaDataApi;
     @Value("${sony.ci.assetid}")
