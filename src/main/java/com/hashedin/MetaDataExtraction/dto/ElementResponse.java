@@ -1,3 +1,5 @@
+
+
 package com.hashedin.MetaDataExtraction.dto;
 
 import lombok.AllArgsConstructor;
@@ -16,7 +18,7 @@ public class ElementResponse {
     String name;
     String createdOn;
     String md5Checksum;
-    MetaData metaData;
+    MetaDataFormat metaData;
     String status;
     List<String> customKeys;
     boolean isLocked;

@@ -3,18 +3,23 @@ package com.hashedin.MetaDataExtraction.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hashedin.MetaDataExtraction.config.BasicConfigProperties;
-import com.hashedin.MetaDataExtraction.dto.*;
+import com.hashedin.MetaDataExtraction.dto.ElementResponse;
+import com.hashedin.MetaDataExtraction.dto.MetaDataFormat;
+import com.hashedin.MetaDataExtraction.dto.MetaDataFields;
 import com.hashedin.MetaDataExtraction.repository.ElementsRepository;
+import com.hashedin.MetaDataExtraction.utils.DownloadThread;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import javax.xml.parsers.*;
 import org.springframework.http.*;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestTemplate;
-import org.w3c.dom.*;
-import java.io.InputStream;
-import java.net.URL;
+import javax.xml.stream.XMLInputFactory;
+import javax.xml.stream.XMLStreamConstants;
+import javax.xml.stream.XMLStreamException;
+import javax.xml.stream.XMLStreamReader;
+import java.io.*;
 import java.util.*;
 
 @Service
@@ -25,7 +30,8 @@ public class MetaDataServiceImpl {
     private final BasicConfigProperties basicConfigProperties;
     private final RestTemplate restTemplate;
     private final BearerTokenServiceImpl bearerTokenService;
-    private static final Map<String, String> map = new LinkedHashMap<String, String>();
+    private static final Map<String, String> map = new LinkedHashMap<>();
+    private static String key=null;
 
     @Autowired
     public MetaDataServiceImpl(ElementsRepository elementsRepository,
@@ -44,89 +50,138 @@ public class MetaDataServiceImpl {
         httpHeaders.setContentType(MediaType.APPLICATION_JSON);
         httpHeaders.setBearerAuth(basicConfigProperties.getBearerToken());
         HttpEntity<String> entity = new HttpEntity<>(httpHeaders);
-        ResponseEntity<ElementResponse> response;
+        ResponseEntity<ElementResponse> response=null;
         try {
-             response = restTemplate.exchange(url, HttpMethod.GET,
-                    entity, ElementResponse.class);
-             log.info("Element Details Fetched ");
-
-        }catch(HttpStatusCodeException h){
-            log.info("Error Status Code :"+h.getStatusCode());
-            log.info("Bearer Token Expired");
-            bearerTokenService.setBearerToken();
-            httpHeaders.setBearerAuth(basicConfigProperties.getBearerToken());
             response = restTemplate.exchange(url, HttpMethod.GET,
                     entity, ElementResponse.class);
+            log.info("Element Details Fetched ");
+            basicConfigProperties.setAssetId(response.getBody().getAsset().getId());
+        }catch(HttpStatusCodeException h){
+            log.info("Error Status Code :"+h.getStatusCode());
+            if(h.getStatusCode()==HttpStatus.UNAUTHORIZED){
+                log.info("Bearer Token Expired");
+                bearerTokenService.setBearerToken();
+                httpHeaders.setBearerAuth(basicConfigProperties.getBearerToken());
+                response = restTemplate.exchange(url, HttpMethod.GET,
+                        entity, ElementResponse.class);
+                basicConfigProperties.setAssetId(response.getBody().getAsset().getId());
+            }
+            if(h.getStatusCode()==HttpStatus.NOT_FOUND){
+                log.warn("Element ID is Inavlid");
+            }
         }
-        basicConfigProperties.setAssetId(response.getBody().getAsset().getId());
         return response;
     }
+
+
     public List<MetaDataFields> fetchMetaDataFields(ResponseEntity<ElementResponse> response) {
         List<MetaDataFields> li = new ArrayList<MetaDataFields>();
-            try {
-                InputStream in = new URL(response.getBody().getDownloadUrl()).openStream();
-                log.info("Element Downloaded");
-                DocumentBuilder documentBuilder =
-                        DocumentBuilderFactory.newInstance().newDocumentBuilder();
-                Document doc = documentBuilder.parse(in);
-                if (doc.hasChildNodes()) {
-                    printNote(doc.getChildNodes(), "");
-                } else {
+        try {
+            File file = new File(basicConfigProperties.getFileUrl());
+            if(file.exists()){
+                log.info("File Exist");
+                file.delete();
+                log.info("File Deleted");
+            }
+            DownloadThread downloadThread = new DownloadThread(response.getBody().getDownloadUrl(),
+                    basicConfigProperties.getFileUrl());
+            downloadThread.start();
+            downloadThread.join();
+            downloadThread.stopThread();
+            log.info("Element Downloaded");
+            File file1 = new File(basicConfigProperties.getFileUrl());
 
-                }
-                for (Map.Entry<String, String> entry : map.entrySet()) {
-                    if (!entry.getValue().contains(";")) {
-                        li.add(new MetaDataFields(entry.getKey(), entry.getValue(), false));
-                    }
-                }
-            } catch (Exception e) {
-                log.info("Error Message:    " + e.getMessage());
-                log.info("Error Cause: " + e.getCause());
+            if(!file1.exists()){
+                log.warn("Downloaded file does not exist");
             }
 
+            XMLInputFactory factory = XMLInputFactory.newInstance();
+            XMLStreamReader reader = factory.createXMLStreamReader(new FileInputStream(file1));
+            printNote(reader);
+            for (Map.Entry<String, String> entry : map.entrySet()) {
+                if (!entry.getValue().contains(";")) {
+                    li.add(new MetaDataFields(entry.getKey(), entry.getValue(), false));
+                }
+            }
+            map.clear();
+        } catch (Exception e) {
+            log.warn("Error Message: " + e.getMessage());
+            log.warn("Error Cause: " + e.getCause());
+        }
         return li;
     }
 
-    private void printNote(NodeList nodeList, String parent) {
-        for (int count = 0; count < nodeList.getLength(); count++) {
-            Node tempNode = nodeList.item(count);
-            if (tempNode.hasChildNodes()) {
-                printNote(tempNode.getChildNodes(),
-                        tempNode.getNodeName());
-            }
-            else {
-                if (tempNode.getNodeType() == Node.TEXT_NODE &&
-                        !tempNode.getTextContent().toString().matches("^[\\s]{1,}$")) {
-                    if (map.containsKey(parent)) {
-                        map.replace(parent, map.get(parent) + "; " + tempNode.getTextContent());
-                    } else {
-                        map.put(parent, tempNode.getTextContent());
+    private void printNote(XMLStreamReader reader) throws XMLStreamException {
+
+        while (reader.hasNext()) {
+            int event = reader.next();
+            switch (event) {
+                case XMLStreamConstants.START_ELEMENT:
+                    key=reader.getLocalName();
+                    break;
+                case XMLStreamConstants.END_ELEMENT:
+                    break;
+                case XMLStreamConstants.CHARACTERS:
+                    if(!reader.getText().matches("^[\\s]{1,}$")) {
+                        if(map.containsKey(key)) {
+                            map.replace(key, map.get(key)+"; "+reader.getText());
+                        }
+                        else {
+                            map.put(key, reader.getText());
+                        }
                     }
-                }
+                    break;
+                default:
             }
         }
+        reader.close();
     }
 
-    public ResponseEntity<MetaData> addMetaData(List<MetaDataFields> li) {
-        ResponseEntity<MetaData> response=null;
+    public ResponseEntity<MetaDataFormat> addMetaData(List<MetaDataFields> li) {
+        ResponseEntity<MetaDataFormat> response=null;
         try {
             ObjectMapper mapper = new ObjectMapper();
-            String jsonFormat = mapper.writeValueAsString(new MetaData(li));
+            String jsonFormat = mapper.writeValueAsString(new MetaDataFormat(li));
             HttpHeaders httpHeaders = new HttpHeaders();
             httpHeaders.setContentType(MediaType.APPLICATION_JSON);
             httpHeaders.setBearerAuth(basicConfigProperties.getBearerToken());
             HttpEntity<String> entity = new HttpEntity<>(jsonFormat, httpHeaders);
             response = restTemplate.exchange(basicConfigProperties.getAddMetaDataApi() +
-                    basicConfigProperties.getAssetId() + "/metadata", HttpMethod.POST, entity, MetaData.class);
+                    basicConfigProperties.getAssetId() + "/metadata", HttpMethod.POST, entity, MetaDataFormat.class);
             log.info("MetaData Updated in Assets corresponding Custom MetaData Fields");
         } catch (JsonProcessingException j) {
             j.printStackTrace();
         }
+        catch(HttpClientErrorException e){
+            if(e.getStatusCode()==HttpStatus.CONFLICT){
+                log.error("MetaData Already Exist");
+            }
+            if(e.getStatusCode()==HttpStatus.BAD_REQUEST){
+                log.error("MetaData not Updates as PayLoad Body Format MISMATCH");
+            }
+
+        }
+        li.clear();
         return response;
     }
 
-    public boolean isXmlFile(String fileName){
-        String[] fileNameProps=fileName.split("\\.");
-        return fileNameProps[fileNameProps.length-1].equalsIgnoreCase("xml");
+    public boolean isXmlFile(ResponseEntity<ElementResponse> fileName){
+        boolean status =false;
+        try{
+            String[] fileNameProps=fileName.getBody().getName().split("\\.");
+            status= fileNameProps[fileNameProps.length-1].equalsIgnoreCase("xml");
+        } catch(NullPointerException e){
+            log.error("Error Message: " + "No Element Returned");
+        }
+        return status;
     }
+
+    public List<String> getElementsId(){
+        return elementsRepository.getElementIds();
+    }
+
+    public void changeStatusInDb(String elementId){
+        elementsRepository.updateMetaDataStatus(elementId);
+    }
+
 }

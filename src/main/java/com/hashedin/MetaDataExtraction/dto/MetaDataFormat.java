@@ -10,6 +10,6 @@ import java.util.*;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class MetaData {
+public class MetaDataFormat {
     List<MetaDataFields> metaData;
 }
