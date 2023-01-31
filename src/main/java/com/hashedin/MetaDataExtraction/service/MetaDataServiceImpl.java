@@ -3,13 +3,13 @@ package com.hashedin.MetaDataExtraction.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hashedin.MetaDataExtraction.config.BasicConfigProperties;
-import com.hashedin.MetaDataExtraction.dto.ElementResponse;
-import com.hashedin.MetaDataExtraction.dto.MetaDataFormat;
-import com.hashedin.MetaDataExtraction.dto.MetaDataFields;
+import com.hashedin.MetaDataExtraction.dto.*;
 import com.hashedin.MetaDataExtraction.repository.ElementsRepository;
+import com.hashedin.MetaDataExtraction.utils.Constants;
 import com.hashedin.MetaDataExtraction.utils.DownloadThread;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Service;
 import org.springframework.http.*;
 import org.springframework.web.client.HttpClientErrorException;
@@ -31,6 +31,7 @@ public class MetaDataServiceImpl {
     private final RestTemplate restTemplate;
     private final BearerTokenServiceImpl bearerTokenService;
     private static final Map<String, String> map = new LinkedHashMap<>();
+    private static List<String> assetIds= new ArrayList<>();
     private static String key=null;
 
     @Autowired
@@ -184,4 +185,65 @@ public class MetaDataServiceImpl {
         elementsRepository.updateMetaDataStatus(elementId);
     }
 
+
+    public void listWorkspaceContents() {
+
+        SonyCiListWorkspaceContentsResponse listWorkspaceContentsResponseDto =
+                listWorkspaceContents(1, 0);
+        long totalContent = listWorkspaceContentsResponseDto.getCount();
+        int limit = 100;
+        int offset = 0;
+        int pages = (int) Math.ceil(totalContent / (double) limit);
+        //System.out.println("pages : " + pages);
+        for (int i = 1; i <= pages; i++) {
+            listWorkspaceContentsResponseDto = listWorkspaceContents(limit, offset);
+           workspaceContents(listWorkspaceContentsResponseDto);
+            offset += limit;
+        }
+    }
+
+    private SonyCiListWorkspaceContentsResponse listWorkspaceContents(int limit, int offset) {
+        ResponseEntity<SonyCiListWorkspaceContentsResponse> responseEntity;
+        String param = basicConfigProperties.getWorkspaceId() +
+                "/contents?kind=all&" +
+                "limit=" + (limit) + "&" +
+                "offset=" + (offset) + "&" +
+                "orderBy=createdOn&" +
+                "orderDirection=asc&" +
+                "fields=parentFolder,folder";
+        String URL = basicConfigProperties.getListWorkspaceContentsURL() + param;
+        HttpHeaders httpHeaders = new HttpHeaders();
+        httpHeaders.setContentType(MediaType.APPLICATION_JSON);
+        httpHeaders.setBearerAuth(basicConfigProperties.getBearerToken());
+        HttpEntity<String> entity = new HttpEntity<>(httpHeaders);
+        try {
+            responseEntity = restTemplate.exchange(URL, HttpMethod.GET, entity,
+                    new ParameterizedTypeReference<>() {});
+        }
+        catch(HttpStatusCodeException exception) {
+            log.error(exception.getMessage());
+            bearerTokenService.setBearerToken();
+            httpHeaders.setBearerAuth(basicConfigProperties.getBearerToken());
+            responseEntity = restTemplate.exchange(URL, HttpMethod.GET, entity,
+                    new ParameterizedTypeReference<>() {});
+        }
+
+        return responseEntity.getBody();
+    }
+
+    private void workspaceContents(SonyCiListWorkspaceContentsResponse listWorkspaceContentsResponseDto) {
+        List<Items> itemsList = listWorkspaceContentsResponseDto.getItems();
+        for (Items item : itemsList) {
+            log.info(item.getName());
+            log.info(item.getKind());
+            fetchAsset(item);
+        }
+    }
+
+    private void fetchAsset(Items item) {
+        if (item.getKind().equalsIgnoreCase(Constants.ASSET))
+        {
+            assetIds.add(item.getId());
+        }
+    }
 }

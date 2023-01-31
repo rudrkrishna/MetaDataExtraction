@@ -27,4 +27,13 @@ public class BasicConfigProperties {
     private String clientSecret;
     @Value(("${sony.ci.grant.type}"))
     private String grantType;
+
+    @Value("${sony.ci.get.all.elements.for.an.asset.url}")
+    private String getAllElementForAnAssetURL;
+
+    @Value("${sony.ci.list.workspace.contents.url}")
+    private String listWorkspaceContentsURL;
+
+    @Value("${sony.ci.workspace.id}")
+    private String workspaceId;
 }
