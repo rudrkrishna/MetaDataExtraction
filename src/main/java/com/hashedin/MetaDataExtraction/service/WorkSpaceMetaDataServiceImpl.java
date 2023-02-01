@@ -38,6 +38,7 @@ public class WorkSpaceMetaDataServiceImpl {
     public List<String> listWorkspaceContents() {
         SonyCiListWorkspaceContentsResponse listWorkspaceContentsResponseDto =
                 listWorkspaceContents(1, 0);
+        try{
         long totalContent = listWorkspaceContentsResponseDto.getCount();
         int limit = 100;
         int offset = 0;
@@ -48,6 +49,9 @@ public class WorkSpaceMetaDataServiceImpl {
             offset += limit;
         }
         getElemetsForAssets();
+        }catch(Exception e){
+         log.warn("Null Pointer Exception caught in getting Content Count");
+        }
         return elementIds;
     }
 
@@ -81,11 +85,15 @@ public class WorkSpaceMetaDataServiceImpl {
     }
 
     private void workspaceContents(SonyCiListWorkspaceContentsResponse listWorkspaceContentsResponseDto) {
-        List<Items> itemsList = listWorkspaceContentsResponseDto.getItems();
-        log.info("All Items fetched from Workspace");
-        for (Items item : itemsList) {
-            log.info(item.getName());
-            fetchAsset(item);
+        try {
+            List<Items> itemsList = listWorkspaceContentsResponseDto.getItems();
+            log.info("All Items fetched from Workspace");
+            for (Items item : itemsList) {
+                log.info(item.getName());
+                fetchAsset(item);
+            }
+        }catch(Exception e){
+            log.warn("Null Pointer Exception caught in getting Items");
         }
     }
 
@@ -149,9 +157,13 @@ public class WorkSpaceMetaDataServiceImpl {
 
     private void addElementIdsToSet(SonyCiListElementsForAssetsResponse sonyCiListElementsForAssetsResponse,
                                     Set<String> elementIdsSet) {
-        List<ItemsElements> items = sonyCiListElementsForAssetsResponse.getItems();
-        for(ItemsElements item : items) {
-            elementIdsSet.add(item.getId());
+        try {
+            List<ItemsElements> items = sonyCiListElementsForAssetsResponse.getItems();
+            for (ItemsElements item : items) {
+                elementIdsSet.add(item.getId());
+            }
+        }catch(Exception e){
+            log.warn("Null Pointer Exception caught in getting items for getting element ids");
         }
     }
 
