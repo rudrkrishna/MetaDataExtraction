@@ -44,7 +44,7 @@ public class BearerTokenServiceImpl {
             responseEntity = restTemplate.exchange(URL, HttpMethod.POST, entity, new ParameterizedTypeReference<>() { });
             properties.setBearerToken(responseEntity.getBody().getAccess_token());
         }
-        catch (JsonProcessingException exception) {
+        catch (JsonProcessingException | NullPointerException exception) {
             log.info(exception.getMessage());
         }
     }
