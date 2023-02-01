@@ -23,12 +23,12 @@ public class MetadataController {
     }
 
     @PostMapping("/getMetaData")
-    public ResponseEntity<MetaDataFormat> getMetaData(@RequestBody ElementRequest elementId){
+    public ResponseEntity<?> getMetaData(@RequestBody ElementRequest elementId){
         ResponseEntity<ElementResponse> response= metaDataService.getDownloadableUrl(elementId.getElementId());
         if(metaDataService.isXmlFile(response)) {
-            return metaDataService.addMetaData(metaDataService.fetchMetaDataFields(response));
+            return new ResponseEntity<>(metaDataService.addMetaData(metaDataService.fetchMetaDataFields(response)),HttpStatus.OK);
         }else{
-            return new ResponseEntity<>(HttpStatus.OK);
+            return new ResponseEntity<>("Not an XML",HttpStatus.OK);
         }
     }
 

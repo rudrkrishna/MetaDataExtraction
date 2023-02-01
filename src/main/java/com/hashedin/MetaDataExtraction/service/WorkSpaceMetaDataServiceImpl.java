@@ -1,10 +1,7 @@
 package com.hashedin.MetaDataExtraction.service;
 
 import com.hashedin.MetaDataExtraction.config.BasicConfigProperties;
-import com.hashedin.MetaDataExtraction.dto.Items;
-import com.hashedin.MetaDataExtraction.dto.ItemsElements;
-import com.hashedin.MetaDataExtraction.dto.SonyCiListElementsForAssetsResponse;
-import com.hashedin.MetaDataExtraction.dto.SonyCiListWorkspaceContentsResponse;
+import com.hashedin.MetaDataExtraction.dto.*;
 import com.hashedin.MetaDataExtraction.utils.Constants;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -89,7 +86,6 @@ public class WorkSpaceMetaDataServiceImpl {
             List<Items> itemsList = listWorkspaceContentsResponseDto.getItems();
             log.info("All Items fetched from Workspace");
             for (Items item : itemsList) {
-                log.info(item.getName());
                 fetchAsset(item);
             }
         }catch(Exception e){
@@ -171,5 +167,24 @@ public class WorkSpaceMetaDataServiceImpl {
         assetIds.clear();
         elementIds.clear();
 
+    }
+
+    public void deleteMetaData(List<MetaDataFields> li){
+        HttpHeaders httpHeaders = new HttpHeaders();
+        httpHeaders.setContentType(MediaType.APPLICATION_JSON);
+        httpHeaders.setBearerAuth(basicConfigProperties.getBearerToken());
+        HttpEntity<String> entity = new HttpEntity<>(httpHeaders);
+        try {
+            for (MetaDataFields m : li) {
+
+                String url = basicConfigProperties.getAddMetaDataApi() + basicConfigProperties.getAssetId() + "/metadata/" + m.getName();
+
+                restTemplate.exchange(url, HttpMethod.DELETE, entity, new ParameterizedTypeReference<>() {
+                });
+            }
+            log.info("MetaData Deletion SuccessFul");
+        }catch(Exception e){
+            log.info("MetaData Fields does not exist");
+        }
     }
 }

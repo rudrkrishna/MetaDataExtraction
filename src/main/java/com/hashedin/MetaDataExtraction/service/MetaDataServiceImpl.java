@@ -138,8 +138,8 @@ public class MetaDataServiceImpl {
         reader.close();
     }
 
-    public ResponseEntity<MetaDataFormat> addMetaData(List<MetaDataFields> li) {
-        ResponseEntity<MetaDataFormat> response=null;
+    public Object addMetaData(List<MetaDataFields> li) {
+        ResponseEntity<?> response=null;
         try {
             ObjectMapper mapper = new ObjectMapper();
             String jsonFormat = mapper.writeValueAsString(new MetaDataFormat(li));
@@ -148,7 +148,7 @@ public class MetaDataServiceImpl {
             httpHeaders.setBearerAuth(basicConfigProperties.getBearerToken());
             HttpEntity<String> entity = new HttpEntity<>(jsonFormat, httpHeaders);
             response = restTemplate.exchange(basicConfigProperties.getAddMetaDataApi() +
-                    basicConfigProperties.getAssetId() + "/metadata", HttpMethod.POST, entity, MetaDataFormat.class);
+                    basicConfigProperties.getAssetId() + "/metadata", HttpMethod.POST, entity, new ParameterizedTypeReference<>() {});
             log.info("MetaData Updated in Assets corresponding Custom MetaData Fields");
         } catch (JsonProcessingException j) {
             j.printStackTrace();
@@ -186,64 +186,4 @@ public class MetaDataServiceImpl {
     }
 
 
-    public void listWorkspaceContents() {
-
-        SonyCiListWorkspaceContentsResponse listWorkspaceContentsResponseDto =
-                listWorkspaceContents(1, 0);
-        long totalContent = listWorkspaceContentsResponseDto.getCount();
-        int limit = 100;
-        int offset = 0;
-        int pages = (int) Math.ceil(totalContent / (double) limit);
-        //System.out.println("pages : " + pages);
-        for (int i = 1; i <= pages; i++) {
-            listWorkspaceContentsResponseDto = listWorkspaceContents(limit, offset);
-           workspaceContents(listWorkspaceContentsResponseDto);
-            offset += limit;
-        }
-    }
-
-    private SonyCiListWorkspaceContentsResponse listWorkspaceContents(int limit, int offset) {
-        ResponseEntity<SonyCiListWorkspaceContentsResponse> responseEntity;
-        String param = basicConfigProperties.getWorkspaceId() +
-                "/contents?kind=all&" +
-                "limit=" + (limit) + "&" +
-                "offset=" + (offset) + "&" +
-                "orderBy=createdOn&" +
-                "orderDirection=asc&" +
-                "fields=parentFolder,folder";
-        String URL = basicConfigProperties.getListWorkspaceContentsURL() + param;
-        HttpHeaders httpHeaders = new HttpHeaders();
-        httpHeaders.setContentType(MediaType.APPLICATION_JSON);
-        httpHeaders.setBearerAuth(basicConfigProperties.getBearerToken());
-        HttpEntity<String> entity = new HttpEntity<>(httpHeaders);
-        try {
-            responseEntity = restTemplate.exchange(URL, HttpMethod.GET, entity,
-                    new ParameterizedTypeReference<>() {});
-        }
-        catch(HttpStatusCodeException exception) {
-            log.error(exception.getMessage());
-            bearerTokenService.setBearerToken();
-            httpHeaders.setBearerAuth(basicConfigProperties.getBearerToken());
-            responseEntity = restTemplate.exchange(URL, HttpMethod.GET, entity,
-                    new ParameterizedTypeReference<>() {});
-        }
-
-        return responseEntity.getBody();
-    }
-
-    private void workspaceContents(SonyCiListWorkspaceContentsResponse listWorkspaceContentsResponseDto) {
-        List<Items> itemsList = listWorkspaceContentsResponseDto.getItems();
-        for (Items item : itemsList) {
-            log.info(item.getName());
-            log.info(item.getKind());
-            fetchAsset(item);
-        }
-    }
-
-    private void fetchAsset(Items item) {
-        if (item.getKind().equalsIgnoreCase(Constants.ASSET))
-        {
-            assetIds.add(item.getId());
-        }
-    }
 }

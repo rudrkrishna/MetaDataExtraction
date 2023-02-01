@@ -28,12 +28,25 @@ public class WorkspaceMetedataController {
     public String migrateWorkspaceMetaData(){
        List<String> elementIds= workSpaceMetaDataService.listWorkspaceContents();
         for(String s:elementIds){
-            ResponseEntity<ElementResponse> response= metaDataService.getDownloadableUrl(s);
-            if(metaDataService.isXmlFile(response)) {
-                metaDataService.addMetaData(metaDataService.fetchMetaDataFields(response));
+                ResponseEntity<ElementResponse> response = metaDataService.getDownloadableUrl(s);
+                if (metaDataService.isXmlFile(response)) {
+                    metaDataService.addMetaData(metaDataService.fetchMetaDataFields(response));
             }
         }
         workSpaceMetaDataService.flushDS();
         return "MetaData Translated Successfully";
+    }
+
+    @GetMapping("/deleteMetaData")
+    public String deleteMetaData(){
+        List<String> elementIds= workSpaceMetaDataService.listWorkspaceContents();
+        for(String s:elementIds){
+            ResponseEntity<ElementResponse> response = metaDataService.getDownloadableUrl(s);
+            if (metaDataService.isXmlFile(response)) {
+                workSpaceMetaDataService.deleteMetaData(metaDataService.fetchMetaDataFields(response));
+            }
+        }
+        workSpaceMetaDataService.flushDS();
+        return "MetaData Deleted Successfully";
     }
 }
