@@ -12,13 +12,13 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/workspace")
-public class WorkspaceMetedataController {
+public class WorkspaceMeteDataController {
 
     private final MetaDataServiceImpl metaDataService;
     private final WorkSpaceMetaDataServiceImpl workSpaceMetaDataService;
 
     @Autowired
-    public WorkspaceMetedataController(MetaDataServiceImpl metaDataService,
+    public WorkspaceMeteDataController(MetaDataServiceImpl metaDataService,
                                        WorkSpaceMetaDataServiceImpl workSpaceMetaDataService) {
         this.metaDataService = metaDataService;
         this.workSpaceMetaDataService = workSpaceMetaDataService;

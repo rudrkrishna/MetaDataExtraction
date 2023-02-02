@@ -5,7 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hashedin.MetaDataExtraction.config.BasicConfigProperties;
 import com.hashedin.MetaDataExtraction.dto.*;
 import com.hashedin.MetaDataExtraction.repository.ElementsRepository;
-import com.hashedin.MetaDataExtraction.utils.Constants;
+import com.hashedin.MetaDataExtraction.utils.DateUtils;
 import com.hashedin.MetaDataExtraction.utils.DownloadThread;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -45,7 +45,8 @@ public class MetaDataServiceImpl {
     }
 
     public ResponseEntity<ElementResponse> getDownloadableUrl(String elementId){
-        String url = basicConfigProperties.getGetUrl() + elementId
+        DateUtils dateUtils= new DateUtils();
+        String url = basicConfigProperties.getGetUrl() + elementId+dateUtils.getExpiryDate()
                 + basicConfigProperties.getElemProp();
         HttpHeaders httpHeaders = new HttpHeaders();
         httpHeaders.setContentType(MediaType.APPLICATION_JSON);
@@ -149,7 +150,7 @@ public class MetaDataServiceImpl {
             HttpEntity<String> entity = new HttpEntity<>(jsonFormat, httpHeaders);
             response = restTemplate.exchange(basicConfigProperties.getAddMetaDataApi() +
                     basicConfigProperties.getAssetId() + "/metadata", HttpMethod.POST, entity, new ParameterizedTypeReference<>() {});
-            log.info("MetaData Updated in Assets corresponding Custom MetaData Fields");
+            log.info("MetaData Updated in corresponding Assets Custom MetaData Fields");
         } catch (JsonProcessingException j) {
             j.printStackTrace();
         }
@@ -158,7 +159,7 @@ public class MetaDataServiceImpl {
                 log.error("MetaData Already Exist");
             }
             if(e.getStatusCode()==HttpStatus.BAD_REQUEST){
-                log.error("MetaData not Updates as PayLoad Body Format MISMATCH");
+                log.error("MetaData not Updated as PayLoad Format MISMATCH");
             }
 
         }

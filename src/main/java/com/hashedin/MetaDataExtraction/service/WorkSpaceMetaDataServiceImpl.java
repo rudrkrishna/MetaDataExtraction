@@ -101,6 +101,7 @@ public class WorkSpaceMetaDataServiceImpl {
     }
 
     private void getElemetsForAssets(){
+        log.info("Element Id's are being fetched from each asset");
         for(String str:assetIds){
             elementIds.addAll(getElementIdsSet(str));
         }
@@ -182,7 +183,7 @@ public class WorkSpaceMetaDataServiceImpl {
                 restTemplate.exchange(url, HttpMethod.DELETE, entity, new ParameterizedTypeReference<>() {
                 });
             }
-            log.info("MetaData Deletion SuccessFul");
+            log.info("MetaData Deletion Successful");
         }catch(Exception e){
             log.info("MetaData Fields does not exist");
         }
