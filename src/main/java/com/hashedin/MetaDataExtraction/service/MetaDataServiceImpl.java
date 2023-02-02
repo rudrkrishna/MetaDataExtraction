@@ -6,7 +6,6 @@ import com.hashedin.MetaDataExtraction.config.BasicConfigProperties;
 import com.hashedin.MetaDataExtraction.dto.*;
 import com.hashedin.MetaDataExtraction.repository.ElementsRepository;
 import com.hashedin.MetaDataExtraction.utils.DateUtils;
-import com.hashedin.MetaDataExtraction.utils.DownloadThread;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.ParameterizedTypeReference;
@@ -20,6 +19,8 @@ import javax.xml.stream.XMLStreamConstants;
 import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamReader;
 import java.io.*;
+import java.net.URL;
+import java.net.URLConnection;
 import java.util.*;
 
 @Service
@@ -79,26 +80,13 @@ public class MetaDataServiceImpl {
     public List<MetaDataFields> fetchMetaDataFields(ResponseEntity<ElementResponse> response) {
         List<MetaDataFields> li = new ArrayList<MetaDataFields>();
         try {
-            File file = new File(basicConfigProperties.getFileUrl());
-            if(file.exists()){
-                log.info("File Exist");
-                file.delete();
-                log.info("File Deleted");
-            }
-            DownloadThread downloadThread = new DownloadThread(response.getBody().getDownloadUrl(),
-                    basicConfigProperties.getFileUrl());
-            downloadThread.start();
-            downloadThread.join();
-            downloadThread.stopThread();
-            log.info("Element Downloaded");
-            File file1 = new File(basicConfigProperties.getFileUrl());
-
-            if(!file1.exists()){
-                log.warn("Downloaded file does not exist");
-            }
-
+            URL url = new URL(response.getBody().getDownloadUrl());
+            URLConnection connection = url.openConnection();
+            log.info("Connection opened to the URL");
+            BufferedInputStream in = new BufferedInputStream(connection.getInputStream());
+            log.info("InputStream Obtained");
             XMLInputFactory factory = XMLInputFactory.newInstance();
-            XMLStreamReader reader = factory.createXMLStreamReader(new FileInputStream(file1));
+            XMLStreamReader reader = factory.createXMLStreamReader(in);
             printNote(reader);
             for (Map.Entry<String, String> entry : map.entrySet()) {
                 if (!entry.getValue().contains(";")) {
