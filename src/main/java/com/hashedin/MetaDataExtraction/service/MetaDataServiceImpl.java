@@ -75,7 +75,6 @@ public class MetaDataServiceImpl {
         return null;
     }
 
-
     public List<MetaDataFields> fetchMetaDataFields(ElementResponse response) {
         Map<String, String> map = new LinkedHashMap<>();
         Iterator<String> it=null;
@@ -156,7 +155,6 @@ public class MetaDataServiceImpl {
             if(e.getStatusCode()==HttpStatus.BAD_REQUEST){
                 log.error("MetaData not Updated as PayLoad Format MISMATCH");
             }
-
         }
         li.clear();
         return response;
