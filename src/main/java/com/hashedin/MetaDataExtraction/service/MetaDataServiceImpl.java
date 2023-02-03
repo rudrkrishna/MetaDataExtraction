@@ -21,6 +21,7 @@ import javax.xml.stream.XMLStreamReader;
 import java.io.*;
 import java.net.URL;
 import java.net.URLConnection;
+import java.time.LocalDateTime;
 import java.util.*;
 
 @Service
@@ -31,8 +32,6 @@ public class MetaDataServiceImpl {
     private final BasicConfigProperties basicConfigProperties;
     private final RestTemplate restTemplate;
     private final BearerTokenServiceImpl bearerTokenService;
-    private static final Map<String, String> map = new LinkedHashMap<>();
-    private static List<String> assetIds= new ArrayList<>();
     private static String key=null;
 
     @Autowired
@@ -45,7 +44,7 @@ public class MetaDataServiceImpl {
         this.bearerTokenService = bearerTokenService;
     }
 
-    public ResponseEntity<ElementResponse> getDownloadableUrl(String elementId){
+    public ElementResponse getDownloadableUrl(String elementId){
         DateUtils dateUtils= new DateUtils();
         String url = basicConfigProperties.getGetUrl() + elementId+dateUtils.getExpiryDate()
                 + basicConfigProperties.getElemProp();
@@ -58,7 +57,6 @@ public class MetaDataServiceImpl {
             response = restTemplate.exchange(url, HttpMethod.GET,
                     entity, ElementResponse.class);
             log.info("Element Details Fetched ");
-            basicConfigProperties.setAssetId(response.getBody().getAsset().getId());
         }catch(HttpStatusCodeException h){
             log.info("Error Status Code :"+h.getStatusCode());
             if(h.getStatusCode()==HttpStatus.UNAUTHORIZED){
@@ -67,30 +65,31 @@ public class MetaDataServiceImpl {
                 httpHeaders.setBearerAuth(basicConfigProperties.getBearerToken());
                 response = restTemplate.exchange(url, HttpMethod.GET,
                         entity, ElementResponse.class);
-                basicConfigProperties.setAssetId(response.getBody().getAsset().getId());
             }
             if(h.getStatusCode()==HttpStatus.NOT_FOUND){
                 log.warn("Element ID is Inavlid");
             }
         }
-        return response;
+        if(response!=null)
+            return response.getBody();
+        return null;
     }
 
 
-    public List<MetaDataFields> fetchMetaDataFields(ResponseEntity<ElementResponse> response) {
+    public List<MetaDataFields> fetchMetaDataFields(ElementResponse response) {
+        Map<String, String> map = new LinkedHashMap<>();
         Iterator<String> it=null;
-        List<MetaDataFields> li = new ArrayList<MetaDataFields>();
+        List<MetaDataFields> li = new ArrayList<>();
         try {
-            URL url = new URL(response.getBody().getDownloadUrl());
+            URL url = new URL(response.getDownloadUrl());
             URLConnection connection = url.openConnection();
             log.info("Connection opened to the URL");
             BufferedInputStream in = new BufferedInputStream(connection.getInputStream());
             log.info("InputStream Obtained");
             XMLInputFactory factory = XMLInputFactory.newInstance();
             XMLStreamReader reader = factory.createXMLStreamReader(in);
-            printNote(reader);
+            map=printNote(reader);
             it=map.keySet().iterator();
-
             while(it.hasNext()){
                 String ItemKey=it.next();
                 String value=map.get(ItemKey);
@@ -99,7 +98,6 @@ public class MetaDataServiceImpl {
                 }
             }
             map.clear();
-
         } catch (Exception e) {
             log.warn("Error Message: " + e.getMessage());
             log.warn("Error Cause: " + e.getCause());
@@ -107,8 +105,8 @@ public class MetaDataServiceImpl {
         return li;
     }
 
-    private void printNote(XMLStreamReader reader) throws XMLStreamException {
-
+    private Map<String, String> printNote(XMLStreamReader reader) throws XMLStreamException {
+        Map<String, String> map = new LinkedHashMap<>();
         while (reader.hasNext()) {
             int event = reader.next();
             switch (event) {
@@ -131,9 +129,10 @@ public class MetaDataServiceImpl {
             }
         }
         reader.close();
+        return map;
     }
 
-    public Object addMetaData(List<MetaDataFields> li) {
+    public ResponseEntity addMetaData(List<MetaDataFields> li, String assetId) {
         ResponseEntity<?> response=null;
         try {
             ObjectMapper mapper = new ObjectMapper();
@@ -143,7 +142,7 @@ public class MetaDataServiceImpl {
             httpHeaders.setBearerAuth(basicConfigProperties.getBearerToken());
             HttpEntity<String> entity = new HttpEntity<>(jsonFormat, httpHeaders);
             response = restTemplate.exchange(basicConfigProperties.getAddMetaDataApi() +
-                    basicConfigProperties.getAssetId() + "/metadata", HttpMethod.POST, entity,
+                    assetId + "/metadata", HttpMethod.POST, entity,
                     new ParameterizedTypeReference<>() {});
             log.info("MetaData Updated in corresponding Assets Custom MetaData Fields");
         } catch (JsonProcessingException j) {
@@ -152,6 +151,7 @@ public class MetaDataServiceImpl {
         catch(HttpClientErrorException e){
             if(e.getStatusCode()==HttpStatus.CONFLICT){
                 log.error("MetaData Already Exist");
+                return new ResponseEntity("MetaData Already Exist",HttpStatus.OK);
             }
             if(e.getStatusCode()==HttpStatus.BAD_REQUEST){
                 log.error("MetaData not Updated as PayLoad Format MISMATCH");
@@ -162,10 +162,10 @@ public class MetaDataServiceImpl {
         return response;
     }
 
-    public boolean isXmlFile(ResponseEntity<ElementResponse> fileName){
+    public boolean isXmlFile(String fileName){
         boolean status =false;
         try{
-            String[] fileNameProps=fileName.getBody().getName().split("\\.");
+            String[] fileNameProps=fileName.split("\\.");
             status= fileNameProps[fileNameProps.length-1].equalsIgnoreCase("xml");
         } catch(NullPointerException e){
             log.error("Error Message: " + "No Element Returned");
@@ -183,15 +183,30 @@ public class MetaDataServiceImpl {
 
 
     public void dbElements() {
+        log.info("API Hit at "+ LocalDateTime.now().toString());
         List<String> elementIds=getElementsId();
         Iterator<String> it = elementIds.iterator();
         while(it.hasNext()){
             String s=it.next();
-            ResponseEntity<ElementResponse> response= getDownloadableUrl(s);
-            if(isXmlFile(response)) {
-                addMetaData(fetchMetaDataFields(response));
+            ElementResponse response= getDownloadableUrl(s);
+            if(isXmlFile(response.getName())) {
+                addMetaData(fetchMetaDataFields(response), response.getAsset().getId());
                 changeStatusInDb(s);
             }
+        }
+    }
+
+    public ResponseEntity<?> getMetaData(String elementId) {
+        ElementResponse response= getDownloadableUrl(elementId);
+        if(response!=null) {
+            if (isXmlFile(response.getName())) {
+                return new ResponseEntity<>(addMetaData(fetchMetaDataFields(response),
+                        response.getAsset().getId()), HttpStatus.OK);
+            } else {
+                return new ResponseEntity<>("Not an XML", HttpStatus.OK);
+            }
+        }else{
+            return new ResponseEntity<>("Invalid Element ID", HttpStatus.OK);
         }
     }
 }

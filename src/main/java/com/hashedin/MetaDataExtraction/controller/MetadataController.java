@@ -24,20 +24,13 @@ public class MetadataController {
 
     @PostMapping("/getMetaData")
     public ResponseEntity<?> getMetaData(@RequestBody ElementRequest elementId){
-        ResponseEntity<ElementResponse> response= metaDataService.getDownloadableUrl(elementId.getElementId());
-        if(metaDataService.isXmlFile(response)) {
-            return new ResponseEntity<>(metaDataService.addMetaData(metaDataService.fetchMetaDataFields(response)),HttpStatus.OK);
-        }else{
-            return new ResponseEntity<>("Not an XML",HttpStatus.OK);
-        }
+        return metaDataService.getMetaData(elementId.getElementId());
     }
 
     @GetMapping("/cronjob")
-    @Scheduled(cron="*/1 * * * *")
+    @Scheduled(cron="0 */2 * * * *")
     public void getElementId(){
-
         metaDataService.dbElements();
-
     }
 
 }
