@@ -35,14 +35,8 @@ public class MetadataController {
     @GetMapping("/cronjob")
     @Scheduled(cron="*/1 * * * *")
     public void getElementId(){
-        List<String> elementIds=metaDataService.getElementsId();
-        for(String s:elementIds){
-            ResponseEntity<ElementResponse> response= metaDataService.getDownloadableUrl(s);
-            if(metaDataService.isXmlFile(response)) {
-                metaDataService.addMetaData(metaDataService.fetchMetaDataFields(response));
-                metaDataService.changeStatusInDb(s);
-            }
-        }
+
+        metaDataService.dbElements();
 
     }
 

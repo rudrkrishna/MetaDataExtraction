@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Iterator;
 import java.util.List;
 
 @RestController
@@ -27,7 +28,9 @@ public class WorkspaceMeteDataController {
     @GetMapping("/workSpaceMetaData")
     public String migrateWorkspaceMetaData(){
        List<String> elementIds= workSpaceMetaDataService.listWorkspaceContents();
-        for(String s:elementIds){
+        Iterator<String> it = elementIds.iterator();
+        while(it.hasNext()){
+            String s=it.next();
                 ResponseEntity<ElementResponse> response = metaDataService.getDownloadableUrl(s);
                 if (metaDataService.isXmlFile(response)) {
                     metaDataService.addMetaData(metaDataService.fetchMetaDataFields(response));
@@ -40,7 +43,9 @@ public class WorkspaceMeteDataController {
     @GetMapping("/deleteMetaData")
     public String deleteMetaData(){
         List<String> elementIds= workSpaceMetaDataService.listWorkspaceContents();
-        for(String s:elementIds){
+        Iterator<String> it = elementIds.iterator();
+        while(it.hasNext()){
+            String s=it.next();
             ResponseEntity<ElementResponse> response = metaDataService.getDownloadableUrl(s);
             if (metaDataService.isXmlFile(response)) {
                 workSpaceMetaDataService.deleteMetaData(metaDataService.fetchMetaDataFields(response));

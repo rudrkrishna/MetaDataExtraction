@@ -102,8 +102,9 @@ public class WorkSpaceMetaDataServiceImpl {
 
     private void getElemetsForAssets(){
         log.info("Element Id's are being fetched from each asset");
-        for(String str:assetIds){
-            elementIds.addAll(getElementIdsSet(str));
+        Iterator<String> it = assetIds.iterator();
+        while(it.hasNext()){
+            elementIds.addAll(getElementIdsSet(it.next()));
         }
     }
 
@@ -156,8 +157,9 @@ public class WorkSpaceMetaDataServiceImpl {
                                     Set<String> elementIdsSet) {
         try {
             List<ItemsElements> items = sonyCiListElementsForAssetsResponse.getItems();
-            for (ItemsElements item : items) {
-                elementIdsSet.add(item.getId());
+            Iterator<ItemsElements> it=items.iterator();
+            while(it.hasNext()) {
+                elementIdsSet.add(it.next().getId());
             }
         }catch(Exception e){
             log.warn("Null Pointer Exception caught in getting items for getting element ids");

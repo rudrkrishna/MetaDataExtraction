@@ -78,6 +78,7 @@ public class MetaDataServiceImpl {
 
 
     public List<MetaDataFields> fetchMetaDataFields(ResponseEntity<ElementResponse> response) {
+        Iterator<String> it=null;
         List<MetaDataFields> li = new ArrayList<MetaDataFields>();
         try {
             URL url = new URL(response.getBody().getDownloadUrl());
@@ -88,12 +89,17 @@ public class MetaDataServiceImpl {
             XMLInputFactory factory = XMLInputFactory.newInstance();
             XMLStreamReader reader = factory.createXMLStreamReader(in);
             printNote(reader);
-            for (Map.Entry<String, String> entry : map.entrySet()) {
-                if (!entry.getValue().contains(";")) {
-                    li.add(new MetaDataFields(entry.getKey(), entry.getValue(), false));
+            it=map.keySet().iterator();
+
+            while(it.hasNext()){
+                String ItemKey=it.next();
+                String value=map.get(ItemKey);
+                if(!value.contains(";")){
+                    li.add(new MetaDataFields(ItemKey, value, false));
                 }
             }
             map.clear();
+
         } catch (Exception e) {
             log.warn("Error Message: " + e.getMessage());
             log.warn("Error Cause: " + e.getCause());
@@ -137,7 +143,8 @@ public class MetaDataServiceImpl {
             httpHeaders.setBearerAuth(basicConfigProperties.getBearerToken());
             HttpEntity<String> entity = new HttpEntity<>(jsonFormat, httpHeaders);
             response = restTemplate.exchange(basicConfigProperties.getAddMetaDataApi() +
-                    basicConfigProperties.getAssetId() + "/metadata", HttpMethod.POST, entity, new ParameterizedTypeReference<>() {});
+                    basicConfigProperties.getAssetId() + "/metadata", HttpMethod.POST, entity,
+                    new ParameterizedTypeReference<>() {});
             log.info("MetaData Updated in corresponding Assets Custom MetaData Fields");
         } catch (JsonProcessingException j) {
             j.printStackTrace();
@@ -175,4 +182,16 @@ public class MetaDataServiceImpl {
     }
 
 
+    public void dbElements() {
+        List<String> elementIds=getElementsId();
+        Iterator<String> it = elementIds.iterator();
+        while(it.hasNext()){
+            String s=it.next();
+            ResponseEntity<ElementResponse> response= getDownloadableUrl(s);
+            if(isXmlFile(response)) {
+                addMetaData(fetchMetaDataFields(response));
+                changeStatusInDb(s);
+            }
+        }
+    }
 }

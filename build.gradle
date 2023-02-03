@@ -19,10 +19,6 @@ configurations {
 repositories {
 	mavenCentral()
 }
-bootJar {
-	baseName = 'MetaDataTranslation'
-	version =  ''
-}
 
 
 dependencies {
