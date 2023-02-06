@@ -31,17 +31,15 @@ public class MetaDataServiceImpl {
     private final ElementsRepository elementsRepository;
     private final BasicConfigProperties basicConfigProperties;
     private final RestTemplate restTemplate;
-    private final BearerTokenServiceImpl bearerTokenService;
 
 
     @Autowired
     public MetaDataServiceImpl(ElementsRepository elementsRepository,
-                               BasicConfigProperties basicConfigProperties, RestTemplate restTemplate,
-                               BearerTokenServiceImpl bearerTokenService) {
+                               BasicConfigProperties basicConfigProperties, RestTemplate restTemplate) {
         this.elementsRepository = elementsRepository;
         this.basicConfigProperties = basicConfigProperties;
         this.restTemplate = restTemplate;
-        this.bearerTokenService = bearerTokenService;
+
     }
 
     public ElementResponse getDownloadableUrl(String elementId){
@@ -59,13 +57,6 @@ public class MetaDataServiceImpl {
             log.info("Element Details Fetched ");
         }catch(HttpStatusCodeException h){
             log.info("Error Status Code :{}",h.getStatusCode());
-            if(h.getStatusCode()==HttpStatus.UNAUTHORIZED){
-                log.info("Bearer Token Expired");
-                bearerTokenService.setBearerToken();
-                httpHeaders.setBearerAuth(basicConfigProperties.getBearerToken());
-               response = restTemplate.exchange(url, HttpMethod.GET,
-                        entity, ElementResponse.class);
-            }
             if(h.getStatusCode()==HttpStatus.NOT_FOUND){
                 log.warn("Element ID is Inavlid");
             }

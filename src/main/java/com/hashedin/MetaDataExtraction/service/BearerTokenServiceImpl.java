@@ -12,6 +12,8 @@ import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
+import javax.annotation.PostConstruct;
+
 @Service
 @Slf4j
 public class BearerTokenServiceImpl {
@@ -47,5 +49,11 @@ public class BearerTokenServiceImpl {
         catch (JsonProcessingException | NullPointerException exception) {
             log.info(exception.getMessage());
         }
+    }
+
+    @PostConstruct
+    public void setUpBearerToken() {
+        this.setBearerToken();
+        log.info("bearer token generated successfully");
     }
 }

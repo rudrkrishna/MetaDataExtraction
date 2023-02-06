@@ -19,16 +19,14 @@ import java.util.*;
 public class WorkSpaceMetaDataServiceImpl {
     private final BasicConfigProperties basicConfigProperties;
     private final RestTemplate restTemplate;
-    private final BearerTokenServiceImpl bearerTokenService;
     private final MetaDataServiceImpl metaDataService;
 
     @Autowired
     public WorkSpaceMetaDataServiceImpl(BasicConfigProperties basicConfigProperties,
-                                        RestTemplate restTemplate, BearerTokenServiceImpl bearerTokenService,
+                                        RestTemplate restTemplate,
                                         MetaDataServiceImpl metaDataService) {
         this.basicConfigProperties = basicConfigProperties;
         this.restTemplate = restTemplate;
-        this.bearerTokenService = bearerTokenService;
         this.metaDataService = metaDataService;
     }
 
@@ -55,7 +53,7 @@ public class WorkSpaceMetaDataServiceImpl {
     }
 
     private SonyCiListWorkspaceContentsResponse listWorkspaceContents(int limit, int offset) {
-        ResponseEntity<SonyCiListWorkspaceContentsResponse> responseEntity;
+        ResponseEntity<SonyCiListWorkspaceContentsResponse> responseEntity=null;
         String param = basicConfigProperties.getWorkspaceId() +
                 "/contents?kind=Asset&" +
                 "limit=" + (limit) + "&" +
@@ -74,13 +72,11 @@ public class WorkSpaceMetaDataServiceImpl {
         }
         catch(HttpStatusCodeException exception) {
             log.error(exception.getMessage());
-            bearerTokenService.setBearerToken();
-            httpHeaders.setBearerAuth(basicConfigProperties.getBearerToken());
-            responseEntity = restTemplate.exchange(url, HttpMethod.GET, entity,
-                    new ParameterizedTypeReference<>() {});
         }
 
-        return responseEntity.getBody();
+        if(responseEntity!=null)
+            return responseEntity.getBody();
+        return null;
     }
 
     private void workspaceContents(SonyCiListWorkspaceContentsResponse listWorkspaceContentsResponseDto, List<String> assetIds) {
@@ -141,7 +137,7 @@ public class WorkSpaceMetaDataServiceImpl {
     }
 
     private SonyCiListElementsForAssetsResponse getElementsForAssets(int limit, int offset, String assetId) {
-        ResponseEntity<SonyCiListElementsForAssetsResponse> response;
+        ResponseEntity<SonyCiListElementsForAssetsResponse> response=null;
         String param = "/" +
                 assetId +
                 "/elements" +
@@ -161,12 +157,11 @@ public class WorkSpaceMetaDataServiceImpl {
         }
         catch(HttpStatusCodeException exception) {
             log.error(exception.getMessage());
-            bearerTokenService.setBearerToken();
-            httpHeaders.setBearerAuth(basicConfigProperties.getBearerToken());
-            response = restTemplate.exchange(url, HttpMethod.GET, entity,
-                    new ParameterizedTypeReference<>() {});
+
         }
-        return response.getBody();
+        if(response!=null)
+            return response.getBody();
+        return null;
     }
 
     private void addElementIdsToSet(SonyCiListElementsForAssetsResponse sonyCiListElementsForAssetsResponse,
