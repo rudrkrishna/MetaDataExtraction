@@ -95,7 +95,7 @@ public class WorkSpaceMetaDataServiceImpl {
             }
         }catch(Exception e){
             log.warn("Exception caught in getting Items");
-            log.error("Error Cause: "+e.getCause());
+            log.error("Error Cause: {}", e.getCause());
         }
     }
 
@@ -114,7 +114,7 @@ public class WorkSpaceMetaDataServiceImpl {
             }
         }catch(RuntimeException e){
             log.info("Exception Caught in Getting Elements for Assets");
-            log.error("Error Message: "+e.getMessage());
+            log.error("Error Message: {}",e.getMessage());
         }
         return elementIds;
     }
@@ -135,7 +135,7 @@ public class WorkSpaceMetaDataServiceImpl {
             }
         }catch(RuntimeException e){
             log.info("Exception Caught in Getting Element ID's");
-            log.error("Error Message"+e.getMessage());
+            log.error("Error Message : {}", e.getMessage());
         }
         return elementsIdsSet;
     }
@@ -215,7 +215,7 @@ public class WorkSpaceMetaDataServiceImpl {
         }
         }catch(Exception e){
             log.info("Exception Caught while Iterating List of Element ID's");
-            log.error("Error Cause"+e.getCause());
+            log.error("Error Cause : {}", e.getCause());
         }
 
 
@@ -237,7 +237,7 @@ public class WorkSpaceMetaDataServiceImpl {
             }
         }catch(Exception e){
             log.info("Exception Caught while Iterating List of Element ID's");
-            log.error("Error Cause"+e.getCause());
+            log.error("Error Cause : {}", e.getCause());
         }
     }
 }

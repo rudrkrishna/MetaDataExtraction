@@ -13,7 +13,6 @@ import springfox.documentation.swagger2.annotations.EnableSwagger2;
 
 @SpringBootApplication
 @EnableScheduling
-@EnableSwagger2
 public class MetaDataExtractionApplication {
 
 	public static void main(String[] args) {
@@ -29,12 +28,5 @@ public class MetaDataExtractionApplication {
 		return new BasicConfigProperties();
 	}
 
-	@Bean
-	public Docket api() {
-		return new Docket(DocumentationType.SWAGGER_2)
-				.select()
-				.apis(RequestHandlerSelectors.basePackage("com.hashedin"))
-				.build();
-	}
 
 }

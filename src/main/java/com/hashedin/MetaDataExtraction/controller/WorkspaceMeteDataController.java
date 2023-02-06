@@ -1,6 +1,7 @@
 package com.hashedin.MetaDataExtraction.controller;
 
 
+import com.hashedin.MetaDataExtraction.dto.ElementRequest;
 import com.hashedin.MetaDataExtraction.dto.ElementResponse;
 import com.hashedin.MetaDataExtraction.service.MetaDataServiceImpl;
 import com.hashedin.MetaDataExtraction.service.WorkSpaceMetaDataServiceImpl;
@@ -12,7 +13,6 @@ import java.util.Iterator;
 import java.util.List;
 
 @RestController
-@RequestMapping("/workspace")
 public class WorkspaceMeteDataController {
 
     private final MetaDataServiceImpl metaDataService;
@@ -25,15 +25,14 @@ public class WorkspaceMeteDataController {
         this.workSpaceMetaDataService = workSpaceMetaDataService;
     }
 
-    @GetMapping("/workSpaceMetaData")
-    public String migrateWorkspaceMetaData(){
-      workSpaceMetaDataService.migrateMetaData();
-        return "MetaData Translated Successfully";
-    }
-
     @GetMapping("/deleteMetaData")
     public String deleteMetaData(){
         workSpaceMetaDataService.deleteData();
         return "MetaData Deleted Successfully";
+    }
+
+    @PostMapping("/getMetaData")
+    public ResponseEntity<?> getMetaData(@RequestBody ElementRequest elementId){
+        return metaDataService.getMetaData(elementId.getElementId());
     }
 }

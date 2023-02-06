@@ -58,12 +58,12 @@ public class MetaDataServiceImpl {
                     entity, ElementResponse.class);
             log.info("Element Details Fetched ");
         }catch(HttpStatusCodeException h){
-            log.info("Error Status Code :"+h.getStatusCode());
+            log.info("Error Status Code :{}",h.getStatusCode());
             if(h.getStatusCode()==HttpStatus.UNAUTHORIZED){
                 log.info("Bearer Token Expired");
                 bearerTokenService.setBearerToken();
                 httpHeaders.setBearerAuth(basicConfigProperties.getBearerToken());
-                response = restTemplate.exchange(url, HttpMethod.GET,
+               response = restTemplate.exchange(url, HttpMethod.GET,
                         entity, ElementResponse.class);
             }
             if(h.getStatusCode()==HttpStatus.NOT_FOUND){
@@ -98,8 +98,8 @@ public class MetaDataServiceImpl {
             }
             map.clear();
         } catch (Exception e) {
-            log.warn("Error Message: " + e.getMessage());
-            log.warn("Error Cause: " + e.getCause());
+            log.warn("Error Message: {}" , e.getMessage());
+            log.warn("Error Cause: {}" , e.getCause());
         }
         return li;
     }
@@ -167,7 +167,7 @@ public class MetaDataServiceImpl {
             String[] fileNameProps=fileName.split("\\.");
             status= fileNameProps[fileNameProps.length-1].equalsIgnoreCase("xml");
         } catch(NullPointerException e){
-            log.error("Error Message: " + "No Element Returned");
+            log.error("Error Message: {}","No Element Returned");
         }
         return status;
     }
@@ -182,7 +182,7 @@ public class MetaDataServiceImpl {
 
 
     public void dbElements() {
-        log.info("API Hit at "+ LocalDateTime.now().toString());
+        log.info("API Hit at {}", LocalDateTime.now().toString());
         List<String> elementIds=getElementsId();
         Iterator<String> it = elementIds.iterator();
         while(it.hasNext()){
