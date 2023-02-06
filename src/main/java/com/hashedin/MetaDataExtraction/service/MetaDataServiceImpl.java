@@ -58,7 +58,7 @@ public class MetaDataServiceImpl {
         }catch(HttpStatusCodeException h){
             log.info("Error Status Code :{}",h.getStatusCode());
             if(h.getStatusCode()==HttpStatus.NOT_FOUND){
-                log.warn("Element ID is Inavlid");
+                log.warn("Element ID is Invalid");
             }
         }
         if(response!=null)
@@ -83,14 +83,14 @@ public class MetaDataServiceImpl {
             while(it.hasNext()){
                 String ItemKey=it.next();
                 String value=map.get(ItemKey);
-                if(!value.contains(";")){
+                if(!(value==null)){
                     li.add(new MetaDataFields(ItemKey, value, false));
                 }
             }
             map.clear();
         } catch (Exception e) {
             log.warn("Error Message: {}" , e.getMessage());
-            log.warn("Error Cause: {}" , e.getCause());
+            log.warn("Error Cause: {} " , e.getCause());
         }
         return li;
     }
@@ -109,7 +109,7 @@ public class MetaDataServiceImpl {
                 case XMLStreamConstants.CHARACTERS:
                     if(!reader.getText().matches("^[\\s]{1,}$")) {
                         if(map.containsKey(key)) {
-                            map.replace(key, map.get(key)+"; "+reader.getText());
+                            map.replace(key, null);
                         }
                         else {
                             map.put(key, reader.getText());
@@ -177,12 +177,12 @@ public class MetaDataServiceImpl {
         List<String> elementIds=getElementsId();
         Iterator<String> it = elementIds.iterator();
         while(it.hasNext()){
-            String s=it.next();
-            ElementResponse response= getDownloadableUrl(s);
+            String elementId=it.next();
+            ElementResponse response= getDownloadableUrl(elementId);
             if(response!=null){
             if(isXmlFile(response.getName())) {
                 addMetaData(fetchMetaDataFields(response), response.getAsset().getId());
-                changeStatusInDb(s);
+                changeStatusInDb(elementId);
             }
             }
         }

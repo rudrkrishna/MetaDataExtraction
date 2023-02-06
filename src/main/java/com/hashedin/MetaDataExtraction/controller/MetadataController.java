@@ -23,7 +23,7 @@ public class MetadataController {
         return "MetaData Translated Successfully";
     }
 
-    @GetMapping("/cronjob")
+    @GetMapping("/s3MigratedMetaDataTranslation")
     @Scheduled(cron="0 */2 * * * *")
     public void getElementId(){
         metaDataService.dbElements();
