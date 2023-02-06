@@ -32,7 +32,7 @@ public class MetaDataServiceImpl {
     private final BasicConfigProperties basicConfigProperties;
     private final RestTemplate restTemplate;
     private final BearerTokenServiceImpl bearerTokenService;
-    private static String key=null;
+
 
     @Autowired
     public MetaDataServiceImpl(ElementsRepository elementsRepository,
@@ -106,6 +106,7 @@ public class MetaDataServiceImpl {
 
     private Map<String, String> printNote(XMLStreamReader reader) throws XMLStreamException {
         Map<String, String> map = new LinkedHashMap<>();
+        String key=null;
         while (reader.hasNext()) {
             int event = reader.next();
             switch (event) {
@@ -187,9 +188,11 @@ public class MetaDataServiceImpl {
         while(it.hasNext()){
             String s=it.next();
             ElementResponse response= getDownloadableUrl(s);
+            if(response!=null){
             if(isXmlFile(response.getName())) {
                 addMetaData(fetchMetaDataFields(response), response.getAsset().getId());
                 changeStatusInDb(s);
+            }
             }
         }
     }
