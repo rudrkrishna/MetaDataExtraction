@@ -2,17 +2,16 @@ package com.hashedin.MetaDataExtraction.controller;
 
 
 import com.hashedin.MetaDataExtraction.dto.ElementRequest;
-import com.hashedin.MetaDataExtraction.dto.ElementResponse;
 import com.hashedin.MetaDataExtraction.service.MetaDataServiceImpl;
 import com.hashedin.MetaDataExtraction.service.WorkSpaceMetaDataServiceImpl;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 
-import java.util.Iterator;
-import java.util.List;
 
 @RestController
+@EnableWebMvc
 public class WorkspaceMeteDataController {
 
     private final MetaDataServiceImpl metaDataService;
