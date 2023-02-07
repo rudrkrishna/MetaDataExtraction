@@ -36,4 +36,7 @@ public class BasicConfigProperties {
 
     @Value("${sony.ci.workspace.id}")
     private String workspaceId;
+
+    @Value("${sony.ci.get.workspace.details.url}")
+    private String getWorkspaceDetailsURL;
 }

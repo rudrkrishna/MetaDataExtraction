@@ -2,7 +2,6 @@ package com.hashedin.MetaDataExtraction.service;
 
 import com.hashedin.MetaDataExtraction.config.BasicConfigProperties;
 import com.hashedin.MetaDataExtraction.dto.*;
-import com.hashedin.MetaDataExtraction.repository.ElementsRepository;
 import com.hashedin.MetaDataExtraction.utils.Constants;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -11,7 +10,6 @@ import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestTemplate;
-
 import java.util.*;
 
 @Service
@@ -172,6 +170,7 @@ public class WorkSpaceMetaDataServiceImpl {
             while(it.hasNext()) {
                 elementIdsSet.add(it.next().getId());
             }
+            items.clear();
         }catch(Exception e){
             log.warn("Null Pointer Exception caught in getting items for getting element ids");
         }
@@ -195,32 +194,41 @@ public class WorkSpaceMetaDataServiceImpl {
         }
     }
 
-    public void migrateMetaData() {
-
-        List<String> elementIds= listWorkspaceContents();
+    public String migrateMetaData(String workSpaceId) {
+        String message =null;
+        List<String> elementIds=null;
+        basicConfigProperties.setWorkspaceId(workSpaceId);
+        message=checkWorkspaceStatus(workSpaceId);
+        if(!message.equalsIgnoreCase("Valid")){
+            return message;
+        }
+         elementIds= listWorkspaceContents();
         Iterator<String> it=null;
         try{
          it= elementIds.iterator();
         while(it.hasNext()){
-            String s=it.next();
-            ElementResponse response = metaDataService.getDownloadableUrl(s);
-            if(response!=null) {
+            String elementId=it.next();
+            ElementResponse response = metaDataService.getDownloadableUrl(elementId);
+            if(!Objects.isNull(response) && !response.getStatus().equalsIgnoreCase("Deleted")) {
                 if (metaDataService.isXmlFile(response.getName())) {
                     metaDataService.addMetaData(metaDataService.fetchMetaDataFields(response), response.getAsset().getId());
                 }
             }else{
-                log.error("Invalid ElementID");
+                log.error("Invalid ElementID / Element is Deleted");
             }
         }
+        elementIds.clear();
+        message="MetaData Translated Successfully";
         }catch(Exception e){
             log.info("Exception Caught while Iterating List of Element ID's");
             log.error("Error Cause : {}", e.getCause());
         }
-
+        return message;
 
     }
 
-    public void deleteData() {
+    public void deleteData(String workSpaceId) {
+        basicConfigProperties.setWorkspaceId(workSpaceId);
         List<String> elementIds= listWorkspaceContents();
         Iterator<String> it=null;
         try {
@@ -243,4 +251,31 @@ public class WorkSpaceMetaDataServiceImpl {
             log.error("Error Cause : {}", e.getCause());
         }
     }
+
+    public String checkWorkspaceStatus(String workspaceId){
+        SonyCiWorkspaceDetailsResponse workspaceDetails = getWorkspaceDetails(workspaceId);
+        if(Objects.isNull(workspaceDetails))
+            return "No workspace found / Incorrect workspaceId ::" + workspaceId;
+        else
+            return "Valid";
+    }
+
+    public SonyCiWorkspaceDetailsResponse getWorkspaceDetails(String workspaceId) {
+        ResponseEntity<SonyCiWorkspaceDetailsResponse> responseEntity = null;
+        final String URL = basicConfigProperties.getGetWorkspaceDetailsURL() + workspaceId;
+        HttpHeaders httpHeaders = new HttpHeaders();
+        httpHeaders.setContentType(MediaType.APPLICATION_JSON);
+        httpHeaders.setBearerAuth(basicConfigProperties.getBearerToken());
+        HttpEntity<String> entity = new HttpEntity<>(httpHeaders);
+        try {
+            responseEntity = restTemplate.exchange(URL, HttpMethod.GET, entity,
+                    new ParameterizedTypeReference<>() {
+                    });
+        } catch (Exception exception) {
+            log.error(exception.getMessage());
+            return null;
+        }
+        return responseEntity.getBody();
+    }
+
 }

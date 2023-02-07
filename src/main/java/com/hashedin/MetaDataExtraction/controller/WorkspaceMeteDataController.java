@@ -24,9 +24,9 @@ public class WorkspaceMeteDataController {
         this.workSpaceMetaDataService = workSpaceMetaDataService;
     }
 
-    @GetMapping("/deleteMetaData")
-    public String deleteMetaData(){
-        workSpaceMetaDataService.deleteData();
+    @GetMapping("/deleteMetaData/{workSpaceId}")
+    public String deleteMetaData(@PathVariable String workSpaceId){
+        workSpaceMetaDataService.deleteData(workSpaceId);
         return "MetaData Deleted Successfully";
     }
 

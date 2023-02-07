@@ -4,7 +4,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hashedin.MetaDataExtraction.config.BasicConfigProperties;
 import com.hashedin.MetaDataExtraction.dto.*;
-import com.hashedin.MetaDataExtraction.repository.ElementsRepository;
 import com.hashedin.MetaDataExtraction.utils.DateUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,25 +20,20 @@ import javax.xml.stream.XMLStreamReader;
 import java.io.*;
 import java.net.URL;
 import java.net.URLConnection;
-import java.time.LocalDateTime;
 import java.util.*;
 
 @Service
 @Slf4j
 public class MetaDataServiceImpl {
 
-    private final ElementsRepository elementsRepository;
     private final BasicConfigProperties basicConfigProperties;
     private final RestTemplate restTemplate;
 
 
     @Autowired
-    public MetaDataServiceImpl(ElementsRepository elementsRepository,
-                               BasicConfigProperties basicConfigProperties, RestTemplate restTemplate) {
-        this.elementsRepository = elementsRepository;
+    public MetaDataServiceImpl(BasicConfigProperties basicConfigProperties, RestTemplate restTemplate) {
         this.basicConfigProperties = basicConfigProperties;
         this.restTemplate = restTemplate;
-
     }
 
     public ElementResponse getDownloadableUrl(String elementId){
@@ -57,13 +51,10 @@ public class MetaDataServiceImpl {
             log.info("Element Details Fetched ");
         }catch(HttpStatusCodeException h){
             log.info("Error Status Code :{}",h.getStatusCode());
-            if(h.getStatusCode()==HttpStatus.NOT_FOUND){
-                log.warn("Element ID is Invalid");
-            }
+            log.warn("Element ID is Invalid");
+            return null;
         }
-        if(response!=null)
-            return response.getBody();
-        return null;
+        return response.getBody();
     }
 
     public List<MetaDataFields> fetchMetaDataFields(ElementResponse response) {
@@ -163,36 +154,9 @@ public class MetaDataServiceImpl {
         return status;
     }
 
-    public List<String> getElementsId(){
-        return elementsRepository.getElementIds();
-    }
-
-    public void changeStatusInDb(String elementId){
-        elementsRepository.updateMetaDataStatus(elementId);
-    }
-
-
-    public void dbElements() {
-        log.info("API Hit at {}", LocalDateTime.now().toString());
-        List<String> elementIds=getElementsId();
-        Iterator<String> it = elementIds.iterator();
-        while(it.hasNext()){
-            String elementId=it.next();
-            ElementResponse response= getDownloadableUrl(elementId);
-            if(response!=null){
-            if(isXmlFile(response.getName())) {
-                addMetaData(fetchMetaDataFields(response), response.getAsset().getId());
-                changeStatusInDb(elementId);
-            }
-            }else{
-                log.error("Invalid ElementID");
-            }
-        }
-    }
-
     public ResponseEntity<?> getMetaData(String elementId) {
         ElementResponse response= getDownloadableUrl(elementId);
-        if(response!=null) {
+        if(!Objects.isNull(response) && !response.getStatus().equalsIgnoreCase("Deleted")) {
             if (isXmlFile(response.getName())) {
                 return new ResponseEntity<>(addMetaData(fetchMetaDataFields(response),
                         response.getAsset().getId()), HttpStatus.OK);

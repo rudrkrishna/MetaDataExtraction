@@ -21,16 +21,13 @@ public class MetadataController {
         this.workSpaceMetaDataService = workSpaceMetaDataService;
     }
 
-    @GetMapping("/workSpaceMetaData")
-    public ResponseEntity<String> migrateWorkspaceMetaData(){
-        workSpaceMetaDataService.migrateMetaData();
-        return ResponseEntity.status(HttpStatus.OK).body("MetaData Translated Successfully");
-    }
-
-    @PostMapping("/s3MigratedMetaDataTranslation")
-    @Scheduled(cron="0 */2 * * * *")
-    public void getElementId(){
-        metaDataService.dbElements();
+    @GetMapping("/workSpaceMetaData/{workSpaceId}")
+    public ResponseEntity<String> migrateWorkspaceMetaData(@PathVariable String workSpaceId){
+        String workspaceStatus=workSpaceMetaDataService.migrateMetaData(workSpaceId);
+        if(workspaceStatus.contains("Incorrect")){
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(workspaceStatus);
+        }
+        return ResponseEntity.status(HttpStatus.OK).body(workspaceStatus);
     }
 
 }
