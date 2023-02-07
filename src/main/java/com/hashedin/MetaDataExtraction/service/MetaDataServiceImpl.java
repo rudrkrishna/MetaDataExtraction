@@ -184,6 +184,8 @@ public class MetaDataServiceImpl {
                 addMetaData(fetchMetaDataFields(response), response.getAsset().getId());
                 changeStatusInDb(elementId);
             }
+            }else{
+                log.error("Invalid ElementID");
             }
         }
     }

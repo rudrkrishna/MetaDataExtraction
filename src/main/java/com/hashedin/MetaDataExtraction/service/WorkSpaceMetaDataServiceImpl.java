@@ -204,8 +204,12 @@ public class WorkSpaceMetaDataServiceImpl {
         while(it.hasNext()){
             String s=it.next();
             ElementResponse response = metaDataService.getDownloadableUrl(s);
-            if (metaDataService.isXmlFile(response.getName())) {
-                metaDataService.addMetaData(metaDataService.fetchMetaDataFields(response), response.getAsset().getId());
+            if(response!=null) {
+                if (metaDataService.isXmlFile(response.getName())) {
+                    metaDataService.addMetaData(metaDataService.fetchMetaDataFields(response), response.getAsset().getId());
+                }
+            }else{
+                log.error("Invalid ElementID");
             }
         }
         }catch(Exception e){
@@ -225,8 +229,12 @@ public class WorkSpaceMetaDataServiceImpl {
                 while (it.hasNext()) {
                     String s = it.next();
                     ElementResponse response = metaDataService.getDownloadableUrl(s);
+                    if(response!=null) {
                     if (metaDataService.isXmlFile(response.getName())) {
                         deleteMetaData(metaDataService.fetchMetaDataFields(response), response.getAsset().getId());
+                    }
+                    }else{
+                        log.error("Invalid ElementID");
                     }
                 }
             }
