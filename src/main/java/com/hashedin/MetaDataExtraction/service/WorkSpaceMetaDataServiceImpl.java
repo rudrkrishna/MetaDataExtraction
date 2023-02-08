@@ -127,7 +127,7 @@ public class WorkSpaceMetaDataServiceImpl {
                 addElementIdsToSet(sonyCiListElementsForAssetsResponse, elementsIdsSet);
                 offset += limit;
             }
-        }catch(RuntimeException e){
+        }catch(Exception e){
             log.info("Exception Caught in Getting Element ID's");
             log.error("Error Message : {}", e.getMessage());
         }
@@ -154,12 +154,12 @@ public class WorkSpaceMetaDataServiceImpl {
                     new ParameterizedTypeReference<>() {});
         }
         catch(HttpStatusCodeException exception) {
+            log.warn("Exception caught while fetching Elements for an asset: {}",exception.getCause());
             log.error(exception.getMessage());
+            return null;
 
         }
-        if(response!=null)
-            return response.getBody();
-        return null;
+        return response.getBody();
     }
 
     private void addElementIdsToSet(SonyCiListElementsForAssetsResponse sonyCiListElementsForAssetsResponse,
