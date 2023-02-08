@@ -19,11 +19,11 @@ public class MetadataController {
 
     @GetMapping("/workSpaceMetaData")
     public ResponseEntity<String> migrateWorkspaceMetaData(@RequestParam String workSpaceId){
-        String workspaceStatus=workSpaceMetaDataService.migrateMetaData(workSpaceId);
-        if(workspaceStatus.contains("Incorrect")){
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(workspaceStatus);
+        ResponseEntity<String> workspaceStatus=workSpaceMetaDataService.migrateMetaData(workSpaceId);
+        if(workspaceStatus.getStatusCode().is5xxServerError()){
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(workspaceStatus.getBody());
         }
-        return ResponseEntity.status(HttpStatus.OK).body(workspaceStatus);
+        return ResponseEntity.status(HttpStatus.OK).body(workspaceStatus.getBody());
     }
 
 }
