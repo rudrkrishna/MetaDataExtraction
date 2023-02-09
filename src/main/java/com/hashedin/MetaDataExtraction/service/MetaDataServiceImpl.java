@@ -98,6 +98,8 @@ public class MetaDataServiceImpl {
                     dbElementDetails.get().setAddedToCustomMetadata(true);
                     elementsRepository.save(dbElementDetails.get());
                 }
+            } else {
+                log.info("ElementId : {} present in workspaceId : {} already uploaded", elementId, workSpaceId);
             }
         } catch (Exception e) {
             log.error("Something went wrong while fetching element details for elementId : {} present in workspaceId : {}, errorMessage : {}" ,

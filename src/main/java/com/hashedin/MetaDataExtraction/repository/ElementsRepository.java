@@ -11,6 +11,6 @@ import java.util.Optional;
 @Repository
 public interface ElementsRepository extends JpaRepository<Element, Integer> {
 
-    @Query(value = "select * from elements e where e.workspaceid = :workspaceId and e.elementid = :elementId", nativeQuery = true)
+    @Query(value = "select * from elements e where e.workspace_id = :workspaceId and e.element_id = :elementId", nativeQuery = true)
     Optional<Element> getElementDetails(@Param("workspaceId") String workspaceId, @Param("elementId") String elementId);
 }

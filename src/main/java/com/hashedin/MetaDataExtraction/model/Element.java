@@ -16,36 +16,18 @@ public class Element {
     @GeneratedValue(strategy = GenerationType.AUTO)
     private Integer id;
 
-    @Column(name = "hash")
-    private String hash;
-
-    @Column(name = "path")
-    private String path;
-
-    @Column(name = "elementname")
+    @Column(name = "element_name")
     private String elementName;
 
-    @Column(name = "format")
-    private String format;
-
-    @Column(name = "foldername")
-    private String folderName;
-
-    @Column(name = "folderid")
-    private String folderId;
-
-    @Column(name = "elementid")
+    @Column(name = "element_id")
     private String elementId;
 
-    @Column(name = "assetid")
+    @Column(name = "asset_id")
     private String assetId;
 
-    @Column(name = "addedtoasset")
-    private Boolean addedToAsset = false;
-
-    @Column(name = "addedtocustommetadata")
+    @Column(name = "added_to_custom_metadata")
     private Boolean addedToCustomMetadata = false;
 
-    @Column(name = "workspaceid")
+    @Column(name = "workspace_id")
     private String workspaceId;
 }

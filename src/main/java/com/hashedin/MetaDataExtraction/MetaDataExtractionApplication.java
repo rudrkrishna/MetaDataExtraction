@@ -20,16 +20,16 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
 public class MetaDataExtractionApplication {
 
 	 // Create required HandlerMapping, to avoid several default HandlerMapping instances being created
-	@Bean
-	public HandlerMapping handlerMapping() {
-		return new RequestMappingHandlerMapping();
-	}
+//	@Bean
+//	public HandlerMapping handlerMapping() {
+//		return new RequestMappingHandlerMapping();
+//	}
 
 //	  Create required HandlerAdapter, to avoid several default HandlerAdapter instances being created
-	 @Bean
-	public HandlerAdapter handlerAdapter() {
-		return new RequestMappingHandlerAdapter();
-	}
+//	 @Bean
+//	public HandlerAdapter handlerAdapter() {
+//		return new RequestMappingHandlerAdapter();
+//	}
 
 
 	public static void main(String[] args) {
