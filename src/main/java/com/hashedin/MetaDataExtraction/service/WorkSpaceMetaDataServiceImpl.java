@@ -35,7 +35,7 @@ public class WorkSpaceMetaDataServiceImpl {
         List<String> elementIds;
         if (!Objects.isNull(listWorkspaceContentsResponseDto)) {
             long totalContent = listWorkspaceContentsResponseDto.getCount();
-            int limit = 100;
+            int limit = 25;
             int offset = 0;
             int pages = (int) Math.ceil(totalContent / (double) limit);
             for (int i = 1; i <= pages; i++) {
