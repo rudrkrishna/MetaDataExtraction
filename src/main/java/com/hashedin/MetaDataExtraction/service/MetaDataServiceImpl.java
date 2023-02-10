@@ -68,11 +68,11 @@ public class MetaDataServiceImpl {
     }
 
     public void fetchMetaDataFields(ElementResponse response, String workSpaceId) {
-        List<MetaDataFields> metaDataFieldList = new ArrayList<>();
+        List<MetaDataFields> metaDataFieldList;
         String elementId = response.getId();
         boolean metaDataAddStatus;
         try {
-            Optional<Element> dbElementDetails = elementsRepository.getElementDetails(workSpaceId, elementId);
+            Optional<Element> dbElementDetails = elementsRepository.getElementDetails(workSpaceId, elementId, response.getAsset().getId());
 
             if(dbElementDetails.isEmpty()) {
                 // translating elements which are present only in workspace
