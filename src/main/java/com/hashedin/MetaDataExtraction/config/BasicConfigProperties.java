@@ -40,4 +40,7 @@ public class BasicConfigProperties {
 
     @Value("${sony.ci.bulk.asset.or.elements}")
     private String bulkAssetOrElementDetails;
+
+    @Value("${sony.ci.delete.metadata}")
+    private String deleteMetaData;
 }

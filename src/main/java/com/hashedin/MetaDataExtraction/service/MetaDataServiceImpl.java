@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hashedin.MetaDataExtraction.config.BasicConfigProperties;
 import com.hashedin.MetaDataExtraction.dto.ElementResponse;
+import com.hashedin.MetaDataExtraction.dto.Items;
 import com.hashedin.MetaDataExtraction.dto.MetaDataFields;
 import com.hashedin.MetaDataExtraction.dto.MetaDataFormat;
 import com.hashedin.MetaDataExtraction.model.Element;
@@ -24,6 +25,7 @@ import java.io.BufferedInputStream;
 import java.net.URL;
 import java.net.URLConnection;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import static com.hashedin.MetaDataExtraction.utils.Constants.XML;
 
@@ -43,7 +45,7 @@ public class MetaDataServiceImpl {
         this.elementsRepository = elementsRepository;
     }
 
-    public void fetchMetaDataFields(ElementResponse elementDetails, String workSpaceId) {
+    public void fetchMetaDataFields(ElementResponse elementDetails, String workSpaceId, Map<String, Items> assetDetailsMap) {
         List<MetaDataFields> metaDataFieldList;
         String elementId = elementDetails.getId();
         boolean metaDataAddStatus;
@@ -62,7 +64,7 @@ public class MetaDataServiceImpl {
                     newElement.setWorkspaceId(workSpaceId);
                     Element savedElement = elementsRepository.save(newElement);
 
-                    metaDataAddStatus = addMetaData(metaDataFieldList, elementDetails.getAsset().getId());
+                    metaDataAddStatus = addMetaData(metaDataFieldList, elementDetails.getAsset().getId(), assetDetailsMap);
                     if (metaDataAddStatus) {
                         savedElement.setAddedToCustomMetadata(true);
                         elementsRepository.save(savedElement);
@@ -72,14 +74,14 @@ public class MetaDataServiceImpl {
                 // translating elements which are migrated to workspace from s3
                 metaDataFieldList = fetchAndTranslateElement(elementDetails.getDownloadUrl(), elementId, workSpaceId);
                 if(!Objects.isNull(metaDataFieldList)) {
-                    metaDataAddStatus = addMetaData(metaDataFieldList, elementDetails.getAsset().getId());
+                    metaDataAddStatus = addMetaData(metaDataFieldList, elementDetails.getAsset().getId(), assetDetailsMap);
                     if (metaDataAddStatus) {
                         dbElementDetails.get().setAddedToCustomMetadata(true);
                         elementsRepository.save(dbElementDetails.get());
                     }
                 }
             } else {
-                log.info("ElementId : {} present in workspaceId : {} is deleted or already uploaded", elementId, workSpaceId);
+                log.info("ElementId : {} present in workspaceId : {} is already uploaded", elementId, workSpaceId);
             }
         } catch (Exception e) {
             log.error("Something went wrong while fetching element details for elementId : {} present in workspaceId : {}, errorMessage : {}",
@@ -110,7 +112,7 @@ public class MetaDataServiceImpl {
             log.info("Completed download and translation for element with elementId : {} present in workspaceId : {}", elementId, workSpaceId);
             return metaDataFieldList;
         } catch (Exception e) {
-            log.error("Something went wrong while downloading and translating");
+            log.error("Something went wrong while downloading and translating or the element : {} was deleted, errorMessage : {}", elementId, e.getMessage());
             return null;
         }
     }
@@ -142,20 +144,38 @@ public class MetaDataServiceImpl {
         return map;
     }
 
-    public boolean addMetaData(List<MetaDataFields> metaDataFieldList, String assetId) {
+    public boolean addMetaData(List<MetaDataFields> metaDataFieldList, String assetId, Map<String, Items> assetDetailsMap) {
         try {
-            ObjectMapper mapper = new ObjectMapper();
-            String jsonFormat = mapper.writeValueAsString(new MetaDataFormat(metaDataFieldList));
-            HttpHeaders httpHeaders = new HttpHeaders();
-            httpHeaders.setContentType(MediaType.APPLICATION_JSON);
-            httpHeaders.setBearerAuth(basicConfigProperties.getBearerToken());
-            HttpEntity<String> entity = new HttpEntity<>(jsonFormat, httpHeaders);
-            restTemplate.exchange(basicConfigProperties.getAddMetaDataApi() +
-                            assetId + "/metadata", HttpMethod.POST, entity,
-                    new ParameterizedTypeReference<>() {
-                    });
-            log.info("MetaData updated in corresponding asset custom metaData fields where assetId : {}", assetId);
-            return true;
+            return uploadMetaData(metaDataFieldList, assetId);
+        } catch (JsonProcessingException e) {
+            log.error("Something went wrong while parsing json, errorMessage : {}", e.getMessage());
+        } catch (HttpClientErrorException e) {
+            if (e.getStatusCode() == HttpStatus.CONFLICT) {
+                log.error("MetaData Already Exist for assetId : {}, errorMessage : {}", assetId, e.getMessage());
+                return mergeExistingMetaDataAndRetryUpload(metaDataFieldList, assetId, assetDetailsMap.get(assetId).getMetadata());
+            }
+            if (e.getStatusCode() == HttpStatus.BAD_REQUEST) {
+                log.error("MetaData not updated as payLoad format mismatch for assetId : {}, errorMessage : {}", assetId, e.getMessage());
+            }
+        } catch (Exception e) {
+            log.error("Something went wrong while adding custom metadata fields to assetId : {}, errorMessage : {}", assetId, e.getMessage());
+        }
+        return false;
+    }
+
+    private boolean mergeExistingMetaDataAndRetryUpload(List<MetaDataFields> metaDataFieldList, String assetId, List<MetaDataFields> existingAssetMetaData) {
+
+        Map<String, MetaDataFields> combineMetaDataMap = metaDataFieldList.stream().collect(Collectors.toMap(MetaDataFields::getName, metaData -> metaData));
+        try {
+            for(MetaDataFields metaData: existingAssetMetaData){
+                if(combineMetaDataMap.containsKey(metaData.getName())){
+                    deleteMetaData(assetId, metaData.getName());
+                }
+            }
+
+            List<MetaDataFields> metaDataFields = new ArrayList<>(combineMetaDataMap.values());
+            return uploadMetaData(metaDataFields, assetId);
+
         } catch (JsonProcessingException e) {
             log.error("Something went wrong while parsing json, errorMessage : {}", e.getMessage());
         } catch (HttpClientErrorException e) {
@@ -170,6 +190,34 @@ public class MetaDataServiceImpl {
             log.error("Something went wrong while adding custom metadata fields to assetId : {}, errorMessage : {}", assetId, e.getMessage());
         }
         return false;
+    }
+
+    private boolean uploadMetaData(List<MetaDataFields> metaDataFieldList, String assetId) throws JsonProcessingException {
+        ObjectMapper mapper = new ObjectMapper();
+        String jsonFormat = mapper.writeValueAsString(new MetaDataFormat(metaDataFieldList));
+        HttpHeaders httpHeaders = new HttpHeaders();
+        httpHeaders.setContentType(MediaType.APPLICATION_JSON);
+        httpHeaders.setBearerAuth(basicConfigProperties.getBearerToken());
+        HttpEntity<String> entity = new HttpEntity<>(jsonFormat, httpHeaders);
+        restTemplate.exchange(basicConfigProperties.getAddMetaDataApi() +
+                        assetId + "/metadata", HttpMethod.POST, entity,
+                new ParameterizedTypeReference<>() {
+                });
+        log.info("MetaData updated in corresponding asset custom metaData fields where assetId : {}", assetId);
+        return true;
+    }
+
+    private void deleteMetaData(String assetId, String fieldName) {
+        log.info("Deleting MetaData fieldName : {} for the corresponding assetId : {}", fieldName, assetId);
+        HttpHeaders httpHeaders = new HttpHeaders();
+        httpHeaders.setContentType(MediaType.APPLICATION_JSON);
+        httpHeaders.setBearerAuth(basicConfigProperties.getBearerToken());
+        HttpEntity<String> entity = new HttpEntity<>(httpHeaders);
+        restTemplate.exchange(basicConfigProperties.getDeleteMetaData() +
+                        assetId + "/metadata/" + fieldName , HttpMethod.DELETE, entity,
+                new ParameterizedTypeReference<>() {
+                });
+        log.info("MetaData fieldName : {} deleted for the corresponding assetId : {}", fieldName, assetId);
     }
 
     public boolean isXmlFile(String fileName) {

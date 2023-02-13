@@ -59,12 +59,12 @@ public class WorkSpaceMetaDataServiceImpl {
             for (int i = 0; i < pages; i++) {
                 listWorkspaceContentsResponseDto = listWorkspaceContents(workSpaceId, limit, offset);
                 if (!Objects.isNull(listWorkspaceContentsResponseDto)) {
-                    List<String> assetIds = workspaceContents(listWorkspaceContentsResponseDto);
-                    elementDetailsList = getElementsForAssets(assetIds);
+                    Map<String, Items> assetDetailsMap = workspaceContents(listWorkspaceContentsResponseDto);
+                    elementDetailsList = getElementsForAssets(assetDetailsMap.keySet());
                     if (!Objects.isNull(elementDetailsList)) {
                         for (ElementResponse elementDetails : elementDetailsList) {
                             if (metaDataService.isXmlFile(elementDetails.getName()) && !DELETED.equalsIgnoreCase(elementDetails.getStatus())) {
-                                metaDataService.fetchMetaDataFields(elementDetails, workSpaceId);
+                                metaDataService.fetchMetaDataFields(elementDetails, workSpaceId, assetDetailsMap);
                             } else {
                                 log.debug("Element is not a xml file, where elementId : {}", elementDetails.getId());
                             }
@@ -89,7 +89,7 @@ public class WorkSpaceMetaDataServiceImpl {
                     "offset=" + (offset) + "&" +
                     "orderBy=createdOn&" +
                     "orderDirection=asc&" +
-                    "fields=parentFolder,folder";
+                    "fields=parentFolder,folder,metadata,status";
             String url = basicConfigProperties.getListWorkspaceContentsURL() + param;
             HttpHeaders httpHeaders = new HttpHeaders();
             httpHeaders.setContentType(MediaType.APPLICATION_JSON);
@@ -110,32 +110,32 @@ public class WorkSpaceMetaDataServiceImpl {
         }
     }
 
-    private List<String> workspaceContents(SonyCiListWorkspaceContentsResponse listWorkspaceContentsResponseDto) {
-        List<String> assetIds = new ArrayList<>();
+    private Map<String, Items> workspaceContents(SonyCiListWorkspaceContentsResponse listWorkspaceContentsResponseDto) {
+        Map<String, Items> assetDetailsMap = new HashMap<>();
         try {
             List<Items> itemsList = listWorkspaceContentsResponseDto.getItems();
             for (Items item : itemsList) {
                 if (item.getKind().equalsIgnoreCase(Constants.ASSET)) {
-                    assetIds.add(item.getId());
+                    assetDetailsMap.put(item.getId(), item);
                 }
             }
-            log.info("All {} Items fetched from Workspace", assetIds.size());
-            return assetIds;
+            log.info("All {} Items fetched from Workspace", assetDetailsMap.keySet().size());
+            return assetDetailsMap;
         } catch (Exception e) {
             log.error("Exception occurred while filtering the workspace content for assets / NullPointerException occurred, errorMessage : {}", e.getMessage());
-            return assetIds;
+            return assetDetailsMap;
         }
     }
 
-    private List<ElementResponse> getElementsForAssets(List<String> assetIds){
+    private List<ElementResponse> getElementsForAssets(Set<String> assetIds){
         List<ElementResponse> elementResponseList;
         int limit = 50;
         int offset = 0;
         SonyCiBulkElementDetails sonyCiBulkElementDetails = getElementsForAssets(assetIds, offset, limit);
         if (!Objects.isNull(sonyCiBulkElementDetails)) {
             elementResponseList = new ArrayList<>(sonyCiBulkElementDetails.getItems());
-            int totalContent = sonyCiBulkElementDetails.getCount();
             offset = sonyCiBulkElementDetails.getItems().size();
+            int totalContent = sonyCiBulkElementDetails.getCount() - offset;
             int pages = (int) Math.ceil(totalContent / (double) limit);
 
             for (int i = 0; i < pages; i++) {
@@ -153,8 +153,8 @@ public class WorkSpaceMetaDataServiceImpl {
     }
 
 
-    private SonyCiBulkElementDetails getElementsForAssets(List<String> assetIds, int offset, int limit) {
-        log.info("Fetching list of element details for given list of assetIds, offset : {}, limit : {}", offset, limit);
+    private SonyCiBulkElementDetails getElementsForAssets(Set<String> assetIds, int offset, int limit) {
+        log.info("Fetching list of element details for given list of {} assetIds, offset : {}, limit : {}", assetIds.size(), offset, limit);
         ResponseEntity<SonyCiBulkElementDetails> response;
         String url = basicConfigProperties.getBulkAssetOrElementDetails();
 
@@ -175,6 +175,7 @@ public class WorkSpaceMetaDataServiceImpl {
             response = restTemplate.exchange(url, HttpMethod.POST, entity,
                     new ParameterizedTypeReference<>() {
                     });
+            log.info("Fetched list of element details for given list of {} assetIds", assetIds.size());
             return Objects.requireNonNull(response.getBody());
         } catch (JsonProcessingException e) {
             log.error("Exception occurred while processing json : {}", e.getMessage());
