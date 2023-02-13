@@ -37,4 +37,7 @@ public class BasicConfigProperties {
 
     @Value("${sony.ci.get.workspace.details.url}")
     private String getWorkspaceDetailsURL;
+
+    @Value("${sony.ci.bulk.asset.or.elements}")
+    private String bulkAssetOrElementDetails;
 }
