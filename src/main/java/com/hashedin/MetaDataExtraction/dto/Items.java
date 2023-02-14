@@ -4,6 +4,8 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
@@ -13,4 +15,6 @@ public class Items {
     private ParentFolder parentFolder;
     private String kind;
     private Folder folder;
+    private String status;
+    private List<MetaDataFields> metadata;
 }

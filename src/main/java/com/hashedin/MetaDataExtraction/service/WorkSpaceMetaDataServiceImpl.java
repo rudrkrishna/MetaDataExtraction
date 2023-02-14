@@ -1,8 +1,9 @@
 package com.hashedin.MetaDataExtraction.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hashedin.MetaDataExtraction.config.BasicConfigProperties;
 import com.hashedin.MetaDataExtraction.dto.*;
-import com.hashedin.MetaDataExtraction.repository.ElementsRepository;
 import com.hashedin.MetaDataExtraction.utils.Constants;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,6 +14,8 @@ import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.*;
+
+import static com.hashedin.MetaDataExtraction.utils.Constants.DELETED;
 
 @Service
 @Slf4j
@@ -30,217 +33,185 @@ public class WorkSpaceMetaDataServiceImpl {
         this.metaDataService = metaDataService;
     }
 
-    public List<String> listWorkspaceContents() {
-        SonyCiListWorkspaceContentsResponse listWorkspaceContentsResponseDto =
-                listWorkspaceContents(1, 0);
-        List<String> elementIds=new ArrayList<>();
-        try{
-        long totalContent = listWorkspaceContentsResponseDto.getCount();
-        int limit = 100;
-        int offset = 0;
-        int pages = (int) Math.ceil(totalContent / (double) limit);
-        List<String> assetIds= new ArrayList<>();
-        for (int i = 1; i <= pages; i++) {
-            listWorkspaceContentsResponseDto = listWorkspaceContents(limit, offset);
-            workspaceContents(listWorkspaceContentsResponseDto, assetIds);
-            offset += limit;
+    public ResponseEntity<String> migrateMetaData(String workSpaceId) {
+        boolean checkStatus = checkWorkspaceStatus(workSpaceId);
+        if (!checkStatus) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("No workspace found / Incorrect workspaceId : " + workSpaceId);
         }
-        elementIds=getElemetsForAssets(assetIds);
-        }catch(Exception e){
-         log.warn("Null Pointer Exception caught in getting Content Count");
-        }
-        return elementIds;
-    }
-
-    private SonyCiListWorkspaceContentsResponse listWorkspaceContents(int limit, int offset) {
-        ResponseEntity<SonyCiListWorkspaceContentsResponse> responseEntity=null;
-        String param = basicConfigProperties.getWorkspaceId() +
-                "/contents?kind=Asset&" +
-                "limit=" + (limit) + "&" +
-                "offset=" + (offset) + "&" +
-                "orderBy=createdOn&" +
-                "orderDirection=asc&" +
-                "fields=parentFolder,folder";
-        String url = basicConfigProperties.getListWorkspaceContentsURL() + param;
-        HttpHeaders httpHeaders = new HttpHeaders();
-        httpHeaders.setContentType(MediaType.APPLICATION_JSON);
-        httpHeaders.setBearerAuth(basicConfigProperties.getBearerToken());
-        HttpEntity<String> entity = new HttpEntity<>(httpHeaders);
         try {
-            responseEntity = restTemplate.exchange(url, HttpMethod.GET, entity,
-                    new ParameterizedTypeReference<>() {});
-        }
-        catch(HttpStatusCodeException exception) {
-            log.error(exception.getMessage());
-        }
-
-        if(responseEntity!=null)
-            return responseEntity.getBody();
-        return null;
-    }
-
-    private void workspaceContents(SonyCiListWorkspaceContentsResponse listWorkspaceContentsResponseDto, List<String> assetIds) {
-        try {
-            List<Items> itemsList = listWorkspaceContentsResponseDto.getItems();
-            log.info("All Items fetched from Workspace");
-            for (Items item : itemsList) {
-                if (item.getKind().equalsIgnoreCase(Constants.ASSET))
-                {
-                    assetIds.add(item.getId());
-                }
-            }
-        }catch(Exception e){
-            log.warn("Exception caught in getting Items");
-            log.error("Error Cause: {}", e.getCause());
+            listWorkspaceContents(workSpaceId);
+            return ResponseEntity.status(HttpStatus.OK).body("MetaData Translated Successfully for workspaceId : " + workSpaceId);
+        } catch (Exception e) {
+            log.error("Exception Caught while Iterating List of Element ID's, errorMessage : {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Exception Caught while Iterating List of Element ID's present in the workspace : " + workSpaceId);
         }
     }
 
-
-
-    private List<String> getElemetsForAssets(List<String> assetIds){
-        List<String> elementIds= new ArrayList<>();
-        try {
-            log.info("Element Id's are being fetched from each asset");
-            Iterator<String> it = assetIds.iterator();
-            Set<String> elem = new HashSet<>();
-            while (it.hasNext()) {
-                elem = getElementIdsSet(it.next());
-                if (elem.size() != 0)
-                    elementIds.addAll(elem);
-            }
-        }catch(RuntimeException e){
-            log.info("Exception Caught in Getting Elements for Assets");
-            log.error("Error Message: {}",e.getMessage());
-        }
-        return elementIds;
-    }
-
-    private Set<String> getElementIdsSet(String assetId) {
-        Set<String> elementsIdsSet = new HashSet<>();
-        try {
-            SonyCiListElementsForAssetsResponse sonyCiListElementsForAssetsResponse =
-                    getElementsForAssets(1, 0, assetId);
-            long totalContent = sonyCiListElementsForAssetsResponse.getCount();
-            int limit = 50;
+    public void listWorkspaceContents(String workSpaceId) throws Exception {
+        SonyCiListWorkspaceContentsResponse listWorkspaceContentsResponseDto = listWorkspaceContents(workSpaceId, 1, 0);
+        List<ElementResponse> elementDetailsList;
+        if (!Objects.isNull(listWorkspaceContentsResponseDto)) {
+            long totalContent = listWorkspaceContentsResponseDto.getCount();
+            int limit = 25;
             int offset = 0;
             int pages = (int) Math.ceil(totalContent / (double) limit);
-            for (int i = 1; i <= pages; i++) {
-                sonyCiListElementsForAssetsResponse = getElementsForAssets(limit, offset, assetId);
-                addElementIdsToSet(sonyCiListElementsForAssetsResponse, elementsIdsSet);
-                offset += limit;
+            for (int i = 0; i < pages; i++) {
+                listWorkspaceContentsResponseDto = listWorkspaceContents(workSpaceId, limit, offset);
+                if (!Objects.isNull(listWorkspaceContentsResponseDto)) {
+                    Map<String, Items> assetDetailsMap = workspaceContents(listWorkspaceContentsResponseDto);
+                    elementDetailsList = getElementsForAssets(assetDetailsMap.keySet());
+                    if (!Objects.isNull(elementDetailsList)) {
+                        for (ElementResponse elementDetails : elementDetailsList) {
+                            if (metaDataService.isXmlFile(elementDetails.getName()) && !DELETED.equalsIgnoreCase(elementDetails.getStatus())) {
+                                metaDataService.fetchMetaDataFields(elementDetails, workSpaceId, assetDetailsMap);
+                            } else {
+                                log.debug("Element is not a xml file, where elementId : {}", elementDetails.getId());
+                            }
+                        }
+                    }
+                    offset += limit;
+                }
             }
-        }catch(RuntimeException e){
-            log.info("Exception Caught in Getting Element ID's");
-            log.error("Error Message : {}", e.getMessage());
+        } else {
+            log.error("No details received from the list workspace api, where workspaceId : {}", workSpaceId);
+            throw new Exception("No assets are present for given workspaceId : " + workSpaceId);
         }
-        return elementsIdsSet;
     }
 
-    private SonyCiListElementsForAssetsResponse getElementsForAssets(int limit, int offset, String assetId) {
-        ResponseEntity<SonyCiListElementsForAssetsResponse> response=null;
-        String param = "/" +
-                assetId +
-                "/elements" +
-                "?limit=" + limit +
-                "&" +
-                "offset=" + offset +
-                "&" +
-                "orderBy=name&orderDirection=asc";
-        String url = basicConfigProperties.getGetAllElementForAnAssetURL() + param;
-        HttpHeaders httpHeaders = new HttpHeaders();
-        httpHeaders.setContentType(MediaType.APPLICATION_JSON);
-        httpHeaders.setBearerAuth(basicConfigProperties.getBearerToken());
-        HttpEntity<String> entity = new HttpEntity<>(httpHeaders);
+    private SonyCiListWorkspaceContentsResponse listWorkspaceContents(String workSpaceId, int limit, int offset) {
         try {
-            response = restTemplate.exchange(url, HttpMethod.GET, entity,
-                    new ParameterizedTypeReference<>() {});
+            log.info("Fetching workspace contents for workspaceId : {} where offset : {} and limit : {}", workSpaceId, offset, limit);
+            ResponseEntity<SonyCiListWorkspaceContentsResponse> responseEntity;
+            String param = workSpaceId +
+                    "/contents?kind=Asset&" +
+                    "limit=" + (limit) + "&" +
+                    "offset=" + (offset) + "&" +
+                    "orderBy=createdOn&" +
+                    "orderDirection=asc&" +
+                    "fields=parentFolder,folder,metadata,status";
+            String url = basicConfigProperties.getListWorkspaceContentsURL() + param;
+            HttpHeaders httpHeaders = new HttpHeaders();
+            httpHeaders.setContentType(MediaType.APPLICATION_JSON);
+            httpHeaders.setBearerAuth(basicConfigProperties.getBearerToken());
+            HttpEntity<String> entity = new HttpEntity<>(httpHeaders);
+            responseEntity = restTemplate.exchange(url, HttpMethod.GET, entity,
+                    new ParameterizedTypeReference<>() {
+                    });
+            return responseEntity.getBody();
+        } catch (HttpStatusCodeException e) {
+            log.error("Http status code exception raised while fetching workspace contents for workspaceId : {} where limit : {} and offset : {}, errorMessage : {}",
+                    workSpaceId, limit, offset, e.getMessage());
+            return null;
+        } catch (Exception e) {
+            log.error("Something went wrong while fetching workspace contents for workspaceId : {}  where limit : {} and offset : {}, errorMessage : {}",
+                    workSpaceId, limit, offset, e.getMessage());
+            return null;
         }
-        catch(HttpStatusCodeException exception) {
-            log.error(exception.getMessage());
+    }
 
+    private Map<String, Items> workspaceContents(SonyCiListWorkspaceContentsResponse listWorkspaceContentsResponseDto) {
+        Map<String, Items> assetDetailsMap = new HashMap<>();
+        try {
+            List<Items> itemsList = listWorkspaceContentsResponseDto.getItems();
+            for (Items item : itemsList) {
+                if (item.getKind().equalsIgnoreCase(Constants.ASSET)) {
+                    assetDetailsMap.put(item.getId(), item);
+                }
+            }
+            log.info("All {} Items fetched from Workspace", assetDetailsMap.keySet().size());
+            return assetDetailsMap;
+        } catch (Exception e) {
+            log.error("Exception occurred while filtering the workspace content for assets / NullPointerException occurred, errorMessage : {}", e.getMessage());
+            return assetDetailsMap;
         }
-        if(response!=null)
-            return response.getBody();
+    }
+
+    private List<ElementResponse> getElementsForAssets(Set<String> assetIds){
+        List<ElementResponse> elementResponseList;
+        int limit = 50;
+        int offset = 0;
+        SonyCiBulkElementDetails sonyCiBulkElementDetails = getElementsForAssets(assetIds, offset, limit);
+        if (!Objects.isNull(sonyCiBulkElementDetails)) {
+            elementResponseList = new ArrayList<>(sonyCiBulkElementDetails.getItems());
+            offset = sonyCiBulkElementDetails.getItems().size();
+            int totalContent = sonyCiBulkElementDetails.getCount() - offset;
+            int pages = (int) Math.ceil(totalContent / (double) limit);
+
+            for (int i = 0; i < pages; i++) {
+                sonyCiBulkElementDetails = getElementsForAssets(assetIds, offset, limit);
+                if (!Objects.isNull(sonyCiBulkElementDetails)) {
+                    elementResponseList.addAll(sonyCiBulkElementDetails.getItems());
+                }
+                offset += limit;
+            }
+            log.info("Fetched {} elements detail for given {} assetIds ", elementResponseList.size(), assetIds.size());
+            return elementResponseList;
+        } else {
+            return null;
+        }
+    }
+
+
+    private SonyCiBulkElementDetails getElementsForAssets(Set<String> assetIds, int offset, int limit) {
+        log.info("Fetching list of element details for given list of {} assetIds, offset : {}, limit : {}", assetIds.size(), offset, limit);
+        ResponseEntity<SonyCiBulkElementDetails> response;
+        String url = basicConfigProperties.getBulkAssetOrElementDetails();
+
+        BulkDetailsPayload bulkDetailsPayload = new BulkDetailsPayload();
+        bulkDetailsPayload.setAssetIds(assetIds);
+        bulkDetailsPayload.setOffset(offset);
+        bulkDetailsPayload.setLimit(limit);
+
+        ObjectMapper mapper = new ObjectMapper();
+        String jsonFormat;
+        try {
+            jsonFormat = mapper.writeValueAsString(bulkDetailsPayload);
+            HttpHeaders httpHeaders = new HttpHeaders();
+            httpHeaders.setContentType(MediaType.APPLICATION_JSON);
+            httpHeaders.setBearerAuth(basicConfigProperties.getBearerToken());
+
+            HttpEntity<String> entity = new HttpEntity<>(jsonFormat, httpHeaders);
+            response = restTemplate.exchange(url, HttpMethod.POST, entity,
+                    new ParameterizedTypeReference<>() {
+                    });
+            log.info("Fetched list of element details for given list of {} assetIds", assetIds.size());
+            return Objects.requireNonNull(response.getBody());
+        } catch (JsonProcessingException e) {
+            log.error("Exception occurred while processing json : {}", e.getMessage());
+        } catch (HttpStatusCodeException e) {
+            log.error("Exception caught while fetching bulk elements details, errorMessage : {}", e.getMessage());
+        } catch (Exception e){
+            log.error("Something went wrong while fetching bulk element details, errorMessage : {}", e.getMessage());
+        }
         return null;
     }
 
-    private void addElementIdsToSet(SonyCiListElementsForAssetsResponse sonyCiListElementsForAssetsResponse,
-                                    Set<String> elementIdsSet) {
-        try {
-            List<ItemsElements> items = sonyCiListElementsForAssetsResponse.getItems();
-            Iterator<ItemsElements> it=items.iterator();
-            while(it.hasNext()) {
-                elementIdsSet.add(it.next().getId());
-            }
-        }catch(Exception e){
-            log.warn("Null Pointer Exception caught in getting items for getting element ids");
-        }
+    public boolean checkWorkspaceStatus(String workSpaceId) {
+        SonyCiWorkspaceDetailsResponse workspaceDetails = getWorkspaceDetails(workSpaceId);
+        if (Objects.isNull(workspaceDetails)) {
+            log.info("No workspace found / Incorrect workspaceId : {}", workSpaceId);
+            return false;
+        } else
+            return true;
     }
 
-
-    public void deleteMetaData(List<MetaDataFields> li, String assetId){
+    public SonyCiWorkspaceDetailsResponse getWorkspaceDetails(String workspaceId) {
+        ResponseEntity<SonyCiWorkspaceDetailsResponse> responseEntity;
+        final String URL = basicConfigProperties.getGetWorkspaceDetailsURL() + workspaceId;
         HttpHeaders httpHeaders = new HttpHeaders();
         httpHeaders.setContentType(MediaType.APPLICATION_JSON);
         httpHeaders.setBearerAuth(basicConfigProperties.getBearerToken());
         HttpEntity<String> entity = new HttpEntity<>(httpHeaders);
         try {
-            for (MetaDataFields m : li) {
-                String url = basicConfigProperties.getAddMetaDataApi() + assetId + "/metadata/" + m.getName();
-                restTemplate.exchange(url, HttpMethod.DELETE, entity, new ParameterizedTypeReference<>() {
-                });
-            }
-            log.info("MetaData Deletion Successful");
-        }catch(Exception e){
-            log.info("MetaData Fields does not exist");
+            responseEntity = restTemplate.exchange(URL, HttpMethod.GET, entity,
+                    new ParameterizedTypeReference<>() {
+                    });
+            return responseEntity.getBody();
+        } catch (Exception e) {
+            log.error("Something went wrong while fetching details of workspace with id : {}, errorMessage : {}", workspaceId, e.getMessage());
+            return null;
         }
     }
 
-    public void migrateMetaData() {
-
-        List<String> elementIds= listWorkspaceContents();
-        Iterator<String> it=null;
-        try{
-         it= elementIds.iterator();
-        while(it.hasNext()){
-            String s=it.next();
-            ElementResponse response = metaDataService.getDownloadableUrl(s);
-            if(response!=null) {
-                if (metaDataService.isXmlFile(response.getName())) {
-                    metaDataService.addMetaData(metaDataService.fetchMetaDataFields(response), response.getAsset().getId());
-                }
-            }else{
-                log.error("Invalid ElementID");
-            }
-        }
-        }catch(Exception e){
-            log.info("Exception Caught while Iterating List of Element ID's");
-            log.error("Error Cause : {}", e.getCause());
-        }
-
-
-    }
-
-    public void deleteData() {
-        List<String> elementIds= listWorkspaceContents();
-        Iterator<String> it=null;
-        try {
-            if(elementIds.size()!=0) {
-                it = elementIds.iterator();
-                while (it.hasNext()) {
-                    String s = it.next();
-                    ElementResponse response = metaDataService.getDownloadableUrl(s);
-                    if(response!=null) {
-                    if (metaDataService.isXmlFile(response.getName())) {
-                        deleteMetaData(metaDataService.fetchMetaDataFields(response), response.getAsset().getId());
-                    }
-                    }else{
-                        log.error("Invalid ElementID");
-                    }
-                }
-            }
-        }catch(Exception e){
-            log.info("Exception Caught while Iterating List of Element ID's");
-            log.error("Error Cause : {}", e.getCause());
-        }
-    }
 }

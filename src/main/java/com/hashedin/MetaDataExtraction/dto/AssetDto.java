@@ -9,8 +9,11 @@ import java.util.List;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class MetaDataFields {
+public class AssetDto {
+    private String id;
     private String name;
-    private String value;
-    private boolean readOnly;
+    private String size;
+    private String format;
+    private String status;
+    private List<MetaDataFields> metadata;
 }

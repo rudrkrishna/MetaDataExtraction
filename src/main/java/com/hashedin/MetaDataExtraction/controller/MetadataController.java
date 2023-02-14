@@ -1,36 +1,31 @@
 package com.hashedin.MetaDataExtraction.controller;
 
-import com.hashedin.MetaDataExtraction.service.MetaDataServiceImpl;
 import com.hashedin.MetaDataExtraction.service.WorkSpaceMetaDataServiceImpl;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 
 @RestController
-@EnableWebMvc
+@Slf4j
 public class MetadataController {
 
-    private final MetaDataServiceImpl metaDataService;
     private final WorkSpaceMetaDataServiceImpl workSpaceMetaDataService;
     @Autowired
-    public MetadataController(MetaDataServiceImpl metaDataService, WorkSpaceMetaDataServiceImpl workSpaceMetaDataService) {
-        this.metaDataService = metaDataService;
+    public MetadataController(WorkSpaceMetaDataServiceImpl workSpaceMetaDataService) {
         this.workSpaceMetaDataService = workSpaceMetaDataService;
     }
 
     @GetMapping("/workSpaceMetaData")
-    public ResponseEntity<String> migrateWorkspaceMetaData(){
-        workSpaceMetaDataService.migrateMetaData();
-        return ResponseEntity.status(HttpStatus.OK).body("MetaData Translated Successfully");
-    }
-
-    @PostMapping("/s3MigratedMetaDataTranslation")
-    @Scheduled(cron="0 */2 * * * *")
-    public void getElementId(){
-        metaDataService.dbElements();
+    public ResponseEntity<String> migrateWorkspaceMetaData(@RequestParam("workSpaceId") String workSpaceId){
+        ResponseEntity<String> workspaceStatus=workSpaceMetaDataService.migrateMetaData(workSpaceId);
+        if(workspaceStatus.getStatusCode().is5xxServerError()){
+            log.error(workspaceStatus.getBody());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(workspaceStatus.getBody());
+        }
+        log.info(workspaceStatus.getBody());
+        return ResponseEntity.status(HttpStatus.OK).body(workspaceStatus.getBody());
     }
 
 }

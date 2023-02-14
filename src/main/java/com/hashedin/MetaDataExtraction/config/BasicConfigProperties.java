@@ -2,6 +2,7 @@ package com.hashedin.MetaDataExtraction.config;
 
 import lombok.Data;
 import org.springframework.beans.factory.annotation.Value;
+
 @Data
 public class BasicConfigProperties {
 
@@ -34,6 +35,12 @@ public class BasicConfigProperties {
     @Value("${sony.ci.list.workspace.contents.url}")
     private String listWorkspaceContentsURL;
 
-    @Value("${sony.ci.workspace.id}")
-    private String workspaceId;
+    @Value("${sony.ci.get.workspace.details.url}")
+    private String getWorkspaceDetailsURL;
+
+    @Value("${sony.ci.bulk.asset.or.elements}")
+    private String bulkAssetOrElementDetails;
+
+    @Value("${sony.ci.delete.metadata}")
+    private String deleteMetaData;
 }
