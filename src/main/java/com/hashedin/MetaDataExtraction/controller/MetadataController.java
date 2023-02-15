@@ -28,4 +28,9 @@ public class MetadataController {
         return ResponseEntity.status(HttpStatus.OK).body(workspaceStatus.getBody());
     }
 
+    @GetMapping("/ping")
+    public ResponseEntity<String> ping(){
+        return ResponseEntity.status(HttpStatus.OK).body("pong");
+    }
+
 }
