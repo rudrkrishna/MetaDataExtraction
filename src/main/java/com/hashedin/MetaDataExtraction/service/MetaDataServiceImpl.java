@@ -88,7 +88,6 @@ public class MetaDataServiceImpl {
     }
     public void uploadMetaDataToWorkSpace(String workSpaceId) throws Exception {
         SonyCiListWorkspaceContentsResponse listWorkspaceContentsResponseDto = listWorkspaceContents(workSpaceId, 1, 0);
-        List<ElementResponse> elementDetailsList;
         if (!Objects.isNull(listWorkspaceContentsResponseDto)) {
             long totalContent = listWorkspaceContentsResponseDto.getCount();
             int limit = 25;
@@ -98,16 +97,7 @@ public class MetaDataServiceImpl {
                 listWorkspaceContentsResponseDto = listWorkspaceContents(workSpaceId, limit, offset);
                 if (!Objects.isNull(listWorkspaceContentsResponseDto)) {
                     Map<String, Items> assetDetailsMap = workspaceContents(listWorkspaceContentsResponseDto);
-                    elementDetailsList = getElementsForAssets(assetDetailsMap.keySet());
-                    if (!Objects.isNull(elementDetailsList)) {
-                        for (ElementResponse elementDetails : elementDetailsList) {
-                            if (isXmlFile(elementDetails.getName()) && !DELETED.equalsIgnoreCase(elementDetails.getStatus())) {
-                                fetchMetaDataFields(elementDetails, workSpaceId, assetDetailsMap);
-                            } else {
-                                log.debug("Element is not a xml file, where elementId : {}", elementDetails.getId());
-                            }
-                        }
-                    }
+                    getElementsForAssets(assetDetailsMap, workSpaceId);
                     offset += limit;
                 }
             }
@@ -165,13 +155,13 @@ public class MetaDataServiceImpl {
         }
     }
 
-    private List<ElementResponse> getElementsForAssets(Set<String> assetIds){
-        List<ElementResponse> elementResponseList;
-        int limit = 50;
+    private void getElementsForAssets(Map<String, Items> assetDetailsMap, String workSpaceId){
+        int limit = 10;
         int offset = 0;
+        Set<String> assetIds = assetDetailsMap.keySet();
         SonyCiBulkElementDetails sonyCiBulkElementDetails = getElementsForAssets(assetIds, offset, limit);
         if (!Objects.isNull(sonyCiBulkElementDetails)) {
-            elementResponseList = new ArrayList<>(sonyCiBulkElementDetails.getItems());
+            fetchAndUploadMetaData(sonyCiBulkElementDetails.getItems(), workSpaceId, assetDetailsMap);
             offset = sonyCiBulkElementDetails.getItems().size();
             int totalContent = sonyCiBulkElementDetails.getCount() - offset;
             int pages = (int) Math.ceil(totalContent / (double) limit);
@@ -179,14 +169,23 @@ public class MetaDataServiceImpl {
             for (int i = 0; i < pages; i++) {
                 sonyCiBulkElementDetails = getElementsForAssets(assetIds, offset, limit);
                 if (!Objects.isNull(sonyCiBulkElementDetails)) {
-                    elementResponseList.addAll(sonyCiBulkElementDetails.getItems());
+                    log.info("Fetched {} elements detail for given {} assetIds ", sonyCiBulkElementDetails.getItems().size(), assetIds.size());
+                    fetchAndUploadMetaData(sonyCiBulkElementDetails.getItems(), workSpaceId, assetDetailsMap);
                 }
                 offset += limit;
             }
-            log.info("Fetched {} elements detail for given {} assetIds ", elementResponseList.size(), assetIds.size());
-            return elementResponseList;
-        } else {
-            return null;
+        }
+    }
+
+    private void fetchAndUploadMetaData(List<ElementResponse> elementDetailsList, String workSpaceId, Map<String, Items> assetDetailsMap){
+        if (!Objects.isNull(elementDetailsList)) {
+            for (ElementResponse elementDetails : elementDetailsList) {
+                if (isXmlFile(elementDetails.getName()) && !DELETED.equalsIgnoreCase(elementDetails.getStatus())) {
+                    fetchMetaDataFields(elementDetails, workSpaceId, assetDetailsMap);
+                } else {
+                    log.debug("Element is not a xml file, where elementId : {}", elementDetails.getId());
+                }
+            }
         }
     }
 
