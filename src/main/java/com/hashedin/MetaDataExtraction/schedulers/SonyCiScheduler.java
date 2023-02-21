@@ -15,6 +15,6 @@ public class SonyCiScheduler {
     @Scheduled(cron = "0 0 */12 * * *")
     public void generateToken() {
         bearerTokenService.setBearerToken();
-        log.info("bearer token generated successfully");
+        log.info("Bearer token generated successfully");
     }
 }
