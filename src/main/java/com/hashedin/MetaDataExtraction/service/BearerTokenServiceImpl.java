@@ -1,6 +1,5 @@
 package com.hashedin.MetaDataExtraction.service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hashedin.MetaDataExtraction.config.BasicConfigProperties;
 import com.hashedin.MetaDataExtraction.dto.SonyCiAccessRequest;
@@ -46,14 +45,14 @@ public class BearerTokenServiceImpl {
             responseEntity = restTemplate.exchange(URL, HttpMethod.POST, entity, new ParameterizedTypeReference<>() { });
             properties.setBearerToken(responseEntity.getBody().getAccess_token());
         }
-        catch (JsonProcessingException | NullPointerException exception) {
-            log.info(exception.getMessage());
+        catch (Exception e) {
+            log.error("Something went wrong in generating sony ci bearer token, errorMessage : {}",e.getMessage());
         }
     }
 
     @PostConstruct
     public void setUpBearerToken() {
         this.setBearerToken();
-        log.info("bearer token generated successfully");
+        log.info("Bearer token generated successfully");
     }
 }
