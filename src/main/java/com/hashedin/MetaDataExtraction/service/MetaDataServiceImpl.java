@@ -156,7 +156,7 @@ public class MetaDataServiceImpl {
     }
 
     private void getElementsForAssets(Map<String, Items> assetDetailsMap, String workSpaceId){
-        int limit = 10;
+        int limit = 50;
         int offset = 0;
         Set<String> assetIds = assetDetailsMap.keySet();
         SonyCiBulkElementDetails sonyCiBulkElementDetails = getElementsForAssets(assetIds, offset, limit);
