@@ -7,6 +7,7 @@ import com.hashedin.MetaDataExtraction.dto.*;
 import com.hashedin.MetaDataExtraction.model.Element;
 import com.hashedin.MetaDataExtraction.repository.ElementsRepository;
 import com.hashedin.MetaDataExtraction.utils.Constants;
+import com.hashedin.MetaDataExtraction.utils.DownloadAndProcessingUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.ParameterizedTypeReference;
@@ -16,18 +17,10 @@ import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestTemplate;
 
-import javax.xml.stream.XMLInputFactory;
-import javax.xml.stream.XMLStreamConstants;
-import javax.xml.stream.XMLStreamException;
-import javax.xml.stream.XMLStreamReader;
-import java.io.BufferedInputStream;
-import java.net.URL;
-import java.net.URLConnection;
 import java.util.*;
 import java.util.stream.Collectors;
 
 import static com.hashedin.MetaDataExtraction.utils.Constants.DELETED;
-import static com.hashedin.MetaDataExtraction.utils.Constants.XML;
 
 @Service
 @Slf4j
@@ -36,13 +29,15 @@ public class MetaDataServiceImpl {
     private final BasicConfigProperties basicConfigProperties;
     private final RestTemplate restTemplate;
     private final ElementsRepository elementsRepository;
+    private final DownloadAndProcessingUtil downloadAndProcessingUtil;
 
 
     @Autowired
-    public MetaDataServiceImpl(BasicConfigProperties basicConfigProperties, RestTemplate restTemplate, ElementsRepository elementsRepository) {
+    public MetaDataServiceImpl(BasicConfigProperties basicConfigProperties, RestTemplate restTemplate, ElementsRepository elementsRepository, DownloadAndProcessingUtil downloadAndProcessingUtil) {
         this.basicConfigProperties = basicConfigProperties;
         this.restTemplate = restTemplate;
         this.elementsRepository = elementsRepository;
+        this.downloadAndProcessingUtil = downloadAndProcessingUtil;
     }
 
     public ResponseEntity<String> migrateMetaData(String workSpaceId) {
@@ -60,7 +55,7 @@ public class MetaDataServiceImpl {
         }
     }
 
-    public boolean checkWorkspaceStatus(String workSpaceId) {
+    private boolean checkWorkspaceStatus(String workSpaceId) {
         SonyCiWorkspaceDetailsResponse workspaceDetails = getWorkspaceDetails(workSpaceId);
         if (Objects.isNull(workspaceDetails)) {
             log.info("No workspace found / Incorrect workspaceId : {}", workSpaceId);
@@ -69,7 +64,7 @@ public class MetaDataServiceImpl {
             return true;
     }
 
-    public SonyCiWorkspaceDetailsResponse getWorkspaceDetails(String workspaceId) {
+    private SonyCiWorkspaceDetailsResponse getWorkspaceDetails(String workspaceId) {
         ResponseEntity<SonyCiWorkspaceDetailsResponse> responseEntity;
         final String URL = basicConfigProperties.getGetWorkspaceDetailsURL() + workspaceId;
         HttpHeaders httpHeaders = new HttpHeaders();
@@ -86,7 +81,8 @@ public class MetaDataServiceImpl {
             return null;
         }
     }
-    public void uploadMetaDataToWorkSpace(String workSpaceId) throws Exception {
+
+    private void uploadMetaDataToWorkSpace(String workSpaceId) throws Exception {
         SonyCiListWorkspaceContentsResponse listWorkspaceContentsResponseDto = listWorkspaceContents(workSpaceId, 1, 0);
         if (!Objects.isNull(listWorkspaceContentsResponseDto)) {
             long totalContent = listWorkspaceContentsResponseDto.getCount();
@@ -180,7 +176,7 @@ public class MetaDataServiceImpl {
     private void fetchAndUploadMetaData(List<ElementResponse> elementDetailsList, String workSpaceId, Map<String, Items> assetDetailsMap){
         if (!Objects.isNull(elementDetailsList)) {
             for (ElementResponse elementDetails : elementDetailsList) {
-                if (isXmlFile(elementDetails.getName()) && !DELETED.equalsIgnoreCase(elementDetails.getStatus())) {
+                if (downloadAndProcessingUtil.isXmlFile(elementDetails.getName()) && !DELETED.equalsIgnoreCase(elementDetails.getStatus())) {
                     fetchMetaDataFields(elementDetails, workSpaceId, assetDetailsMap);
                 } else {
                     log.debug("Element is not a xml file, where elementId : {}", elementDetails.getId());
@@ -223,7 +219,7 @@ public class MetaDataServiceImpl {
         return null;
     }
 
-    public void fetchMetaDataFields(ElementResponse elementDetails, String workSpaceId, Map<String, Items> assetDetailsMap) {
+    private void fetchMetaDataFields(ElementResponse elementDetails, String workSpaceId, Map<String, Items> assetDetailsMap) {
         List<MetaDataFields> metaDataFieldList;
         String elementId = elementDetails.getId();
         boolean metaDataAddStatus;
@@ -232,7 +228,7 @@ public class MetaDataServiceImpl {
 
             if (dbElementDetails.isEmpty()) {
                 // translating elements which are present only in workspace
-                metaDataFieldList = fetchAndTranslateElement(elementDetails.getDownloadUrl(), elementId, workSpaceId);
+                metaDataFieldList = downloadAndProcessingUtil.fetchAndTranslateElement(elementDetails.getDownloadUrl(), elementId, workSpaceId);
                 if(!Objects.isNull(metaDataFieldList)) {
                     Element newElement = new Element();
                     newElement.setAddedToCustomMetadata(false);
@@ -250,7 +246,7 @@ public class MetaDataServiceImpl {
                 }
             } else if (!dbElementDetails.get().getAddedToCustomMetadata()) {
                 // translating elements which are migrated to workspace from s3
-                metaDataFieldList = fetchAndTranslateElement(elementDetails.getDownloadUrl(), elementId, workSpaceId);
+                metaDataFieldList = downloadAndProcessingUtil.fetchAndTranslateElement(elementDetails.getDownloadUrl(), elementId, workSpaceId);
                 if(!Objects.isNull(metaDataFieldList)) {
                     metaDataAddStatus = addMetaData(metaDataFieldList, elementDetails.getAsset().getId(), assetDetailsMap);
                     if (metaDataAddStatus) {
@@ -267,62 +263,7 @@ public class MetaDataServiceImpl {
         }
     }
 
-    private List<MetaDataFields> fetchAndTranslateElement(String elementDownloadUrl, String elementId, String workSpaceId) {
-        try {
-            log.info("Initiating download and translation for element with elementId : {} present in workspaceId : {}", elementId, workSpaceId);
-            Map<String, String> map;
-            List<MetaDataFields> metaDataFieldList = new ArrayList<>();
-            Iterator<String> it;
-            URL url = new URL(elementDownloadUrl);
-            URLConnection connection = url.openConnection();
-            BufferedInputStream in = new BufferedInputStream(connection.getInputStream());
-            XMLInputFactory factory = XMLInputFactory.newInstance();
-            XMLStreamReader reader = factory.createXMLStreamReader(in);
-            map = printNote(reader);
-            it = map.keySet().iterator();
-            while (it.hasNext()) {
-                String ItemKey = it.next();
-                String value = map.get(ItemKey);
-                if (!(value == null)) {
-                    metaDataFieldList.add(new MetaDataFields(ItemKey, value, false));
-                }
-            }
-            log.info("Completed download and translation for element with elementId : {} present in workspaceId : {}", elementId, workSpaceId);
-            return metaDataFieldList;
-        } catch (Exception e) {
-            log.error("Something went wrong while downloading and translating or the element : {} was deleted, errorMessage : {}", elementId, e.getMessage());
-            return null;
-        }
-    }
-
-    private Map<String, String> printNote(XMLStreamReader reader) throws XMLStreamException {
-        Map<String, String> map = new LinkedHashMap<>();
-        String key = null;
-        while (reader.hasNext()) {
-            int event = reader.next();
-            switch (event) {
-                case XMLStreamConstants.START_ELEMENT:
-                    key = reader.getLocalName();
-                    break;
-                case XMLStreamConstants.END_ELEMENT:
-                    break;
-                case XMLStreamConstants.CHARACTERS:
-                    if (!reader.getText().matches("^[\\s]{1,}$")) {
-                        if (map.containsKey(key)) {
-                            map.replace(key, null);
-                        } else {
-                            map.put(key, reader.getText());
-                        }
-                    }
-                    break;
-                default:
-            }
-        }
-        reader.close();
-        return map;
-    }
-
-    public boolean addMetaData(List<MetaDataFields> metaDataFieldList, String assetId, Map<String, Items> assetDetailsMap) {
+    private boolean addMetaData(List<MetaDataFields> metaDataFieldList, String assetId, Map<String, Items> assetDetailsMap) {
         try {
             return uploadMetaData(metaDataFieldList, assetId);
         } catch (JsonProcessingException e) {
@@ -343,10 +284,10 @@ public class MetaDataServiceImpl {
 
     private boolean mergeExistingMetaDataAndRetryUpload(List<MetaDataFields> metaDataFieldList, String assetId, List<MetaDataFields> existingAssetMetaData) {
 
-        Map<String, MetaDataFields> combineMetaDataMap = metaDataFieldList.stream().collect(Collectors.toMap(MetaDataFields::getName, metaData -> metaData));
+        Map<String, MetaDataFields> combineMetaDataMap = metaDataFieldList.stream().collect(Collectors.toMap(metaData -> metaData.getName().toLowerCase(), metaData -> metaData));
         try {
             for(MetaDataFields metaData: existingAssetMetaData){
-                if(combineMetaDataMap.containsKey(metaData.getName())){
+                if(combineMetaDataMap.containsKey(metaData.getName().toLowerCase())){
                     deleteMetaData(assetId, metaData.getName());
                 }
             }
@@ -359,7 +300,6 @@ public class MetaDataServiceImpl {
         } catch (HttpClientErrorException e) {
             if (e.getStatusCode() == HttpStatus.CONFLICT) {
                 log.error("MetaData Already Exist for assetId : {}, errorMessage : {}", assetId, e.getMessage());
-                return true;
             }
             if (e.getStatusCode() == HttpStatus.BAD_REQUEST) {
                 log.error("MetaData not updated as payLoad format mismatch for assetId : {}, errorMessage : {}", assetId, e.getMessage());
@@ -396,16 +336,6 @@ public class MetaDataServiceImpl {
                 new ParameterizedTypeReference<>() {
                 });
         log.info("MetaData fieldName : {} deleted for the corresponding assetId : {}", fieldName, assetId);
-    }
-
-    public boolean isXmlFile(String fileName) {
-        try {
-            String[] fileNameProps = fileName.split("\\.");
-            return fileNameProps[fileNameProps.length - 1].equalsIgnoreCase(XML);
-        } catch (Exception e) {
-            log.error("Something went wrong while checking whether the file is xml, errorMessage : {}", e.getMessage());
-            return false;
-        }
     }
 
     public ResponseEntity<String> deleteWorkSpaceMetaData(String workSpaceId){
@@ -445,7 +375,7 @@ public class MetaDataServiceImpl {
                 return ResponseEntity.status(HttpStatus.OK).body("MetaData deleted Successfully for workspaceId : " + workSpaceId);
             } else {
                 log.error("No details received from the list workspace api, where workspaceId : {}", workSpaceId);
-                throw new Exception("No assets are present for given workspaceId : " + workSpaceId);
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("No assets are present for given workspaceId : " + workSpaceId);
             }
         } catch (Exception e) {
             log.error("Exception Caught while Iterating List of Element ID's, errorMessage : {}", e.getMessage());
